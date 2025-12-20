@@ -45,23 +45,23 @@ set UV_THREADPOOL_SIZE=8      # Windows
 
 1. Get All Users
 
-![Get All User](/images/image.png)
+![Get All User](./images/image.png)
 
 2. Get User By ID
 
 - Found
-  - ![Correct](/images/image2.png)
+  - ![Correct](./images/image2.png)
 - not found
-  - ![notFound](/images/image3.png)
+  - ![notFound](./images/image3.png)
 
 3. POST User
 
-![post](/images/image4.png)
+![post](./images/image4.png)
 
 4. PATCH
 
-![patch](/images/image5.png)
+![patch](./images/image5.png)
 
 5. Delete
 
-![Delete](/images/image6.png)
+![Delete](./images/image6.png)
