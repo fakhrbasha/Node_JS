@@ -177,49 +177,49 @@ export { userModel, postModel, commentModel };
 
 - folder structure of postman
   <!-- ![folderStructure](image-1.png) -->
-  ![folder](/images/image-19.png)
+  ![folder](./images/image-19.png)
 
-1.  ![validation Error](/images/image-2.png)
-    ![name](/images/image-3.png)
-    ![email](/images/image-4.png)
-    ![add](/images/image-5.png)
+1.  ![validation Error](./images/image-2.png)
+    ![name](./images/image-3.png)
+    ![email](./images/image-4.png)
+    ![add](./images/image-5.png)
 
-2.  ![update](/images/image-6.png)
-    ![notFound](/images/image-7.png)
-    ![skip](/images/image-8.png)
+2.  ![update](./images/image-6.png)
+    ![notFound](./images/image-7.png)
+    ![skip](./images/image-8.png)
 
-3.  ![email](/images/image-9.png)
-    ![not](/images/image-10.png)
+3.  ![email](./images/image-9.png)
+    ![not](./images/image-10.png)
 
-4.  ![getById](/images/image-11.png)
-    ![alt text](/images/image-12.png)
+4.  ![getById](./images/image-11.png)
+    ![alt text](./images/image-12.png)
 
 ##### post
 
-1. ![mentor](/images/image-13.png)
+1. ![mentor](./images/image-13.png)
 
-2. ![delete!](/images/image-14.png)
-   ![delete](/images/image-15.png)
-   ![not](/images/image-16.png)
+2. ![delete!](./images/image-14.png)
+   ![delete](./images/image-15.png)
+   ![not](./images/image-16.png)
 
-3. ![details](/images/image-17.png)
+3. ![details](./images/image-17.png)
 
-4. ![count](/images/image-18.png)
+4. ![count](./images/image-18.png)
 
 ##### Comments
 
-1.  ![bulk](/images/image-21.png)
+1.  ![bulk](./images/image-21.png)
 
-2.  ![alter](/images/image-22.png)
-    ![up](/images/image-23.png)
-    ![not](/images/image-24.png)
+2.  ![alter](./images/image-22.png)
+    ![up](./images/image-23.png)
+    ![not](./images/image-24.png)
 
-3.  ![already](/images/image-25.png)
-    ![fakhr](/images/image-26.png)
+3.  ![already](./images/image-25.png)
+    ![fakhr](./images/image-26.png)
 
-4.  ![search](/images/image-27.png)
-    ![img](/images/image-28.png)
+4.  ![search](./images/image-27.png)
+    ![img](./images/image-28.png)
 
-5.  ![3](/images/image-29.png)
+5.  ![3](./images/image-29.png)
 
-6.  ![last](/images/image-30.png)
+6.  ![last](./images/image-30.png)
