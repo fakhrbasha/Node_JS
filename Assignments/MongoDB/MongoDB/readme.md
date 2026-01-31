@@ -1,13 +1,1 @@
-![1](image.png)
-
-```js
-{
-    "Message": "Author Created Successfully",
-    "author": {
-        "acknowledged": true,
-        "insertedId": "697c975705c8c0ba2cd14a9b"
-    }
-}
-
-create author
-```
+<a href="https://mosalaha361-6851529.postman.co/workspace/Fakhr-Basha's-Workspace~317760f7-6833-4547-8924-25e283a22349/collection/49271050-1c59c421-8d06-454e-83a0-1163692e0438?action=share&source=copy-link&creator=49271050">Postman</a>
