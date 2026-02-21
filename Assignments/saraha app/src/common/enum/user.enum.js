@@ -8,3 +8,8 @@ export const ProviderEnum = {
     google: "google",
     facebook: "facebook"
 }
+
+export const RoleEnum = {
+    user: "user",
+    admin: "admin"
+}

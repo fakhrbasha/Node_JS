@@ -8,6 +8,9 @@ import { generateToken, verifyToken } from "../../utils/token/jwt.js"
 import { hashSync, compareSync } from 'bcrypt'
 import { generateOTP } from "../../utils/mail/otp.js"
 import { sendOTP } from "../../utils/mail/mail.js"
+import { OAuth2Client } from "google-auth-library"
+import { Hash } from "../../utils/security/hash.security.js"
+import { SALT_ROUND } from "../../../config/config.service.js"
 
 export const signUp = async (req, res, next) => {
     const { userName, email, password, age, gender, phone } = req.body
@@ -16,10 +19,51 @@ export const signUp = async (req, res, next) => {
         return res.status(409).json({ message: "email already exist" })
     }
     const otp = generateOTP()
-    const user = await db_service.create({ model: userModel, data: { userName, email, password: hashSync(password, 12), age, gender, phone: encrypt(phone) } })
+    console.log(otp);
+    const user = await db_service.create({ model: userModel, data: { userName, email, password: Hash({ plan_text: password, salt_round: SALT_ROUND }), age, gender, phone: encrypt(phone) } })
+    // + -> to convert string to number because .env return string 
     await sendOTP(email, otp)
     // return res.status(201).json({ message: "user created successfully", user })
     successResponse({ res, status: 201, message: "user created successfully", data: user })
+}
+
+export const signUpWithGmail = async (req, res, next) => {
+    const { idToken } = req.body
+    // console.log('BODY:', req.body);
+    // console.log(idToken)
+
+
+
+    const client = new OAuth2Client();
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+        const { name, email, email_verified, picture } = payload
+
+        let user = await db_service.findOne({ model: userModel, filter: { email } })
+
+        if (!user) {
+            user = await db_service.create({ model: userModel, data: { userName: name, email, confirmed: email_verified, profilePicture: picture, provider: ProviderEnum.google } })
+        }
+        if (user.provider == ProviderEnum.system) {
+            throw new Error("please logged in System Only", { cause: 400 })
+        }
+        const token = generateToken({ payload: { id: user._id, email: user.email } })
+        successResponse({ res, message: "user signed in successfully", data: { ...user._doc, token } })
+
+
+
+        // console.log('PAYLOAD:', payload);
+
+        // return res.json(payload);
+    } catch (err) {
+        console.error('GOOGLE VERIFY ERROR:', err);
+        return res.status(401).json({ message: 'Invalid Google token' });
+    }
 }
 
 export const signIn = async (req, res, next) => {
@@ -35,6 +79,11 @@ export const signIn = async (req, res, next) => {
     }
     const token = generateToken({ payload: { id: user._id } })
     successResponse({ res, message: "user signed in successfully", data: { ...user._doc, token } })
+
+}
+export const signInWithEmail = async (req, res, next) => {
+
+    const { id } = req.body
 
 }
 

@@ -1,7 +1,8 @@
 // import pkg from 'jsonwebtoken';
 // const { sign, verify } = pkg;
 import jwt from 'jsonwebtoken'
-const secretKey = 'fakhr'
+import { TOKEN_SECRET_KEY } from '../../../config/config.service.js'
+const secretKey = TOKEN_SECRET_KEY
 const expireDate = '1h'
 
 export const generateToken = ({ payload, options = {} } = {}) => {
