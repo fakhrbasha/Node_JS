@@ -11,22 +11,70 @@ import { sendOTP } from "../../utils/mail/mail.js"
 import { OAuth2Client } from "google-auth-library"
 import { Hash } from "../../utils/security/hash.security.js"
 import { SALT_ROUND } from "../../../config/config.service.js"
+import joi from "joi"
+import { signUpSchema } from "./user.validation.js"
+// export const signUp = async (req, res, next) => {
 
+//     const signUpSchema = joi.object({
+//         userName: joi.string().required(),
+//         password: joi.string().required(),
+//         email: joi.string().required()
+//     }).required()
+
+//     const result = signUpSchema.validate(req.body, { abortEarly: false })
+
+//     if (result.error) {
+//         return res.status(400).json({ message: "error", error })
+//     }
+
+//     const { userName, email, password, age, gender, phone } = req.body
+
+//     if (await db_service.findOne({ model: userModel, filter: { email } })) {
+//         return res.status(409).json({ message: "email already exist" })
+//     }
+//     // const otp = generateOTP()
+//     // console.log(otp);
+//     const user = await db_service.create({ model: userModel, data: { userName, email, password: Hash({ plan_text: password, salt_round: SALT_ROUND }), age, gender, phone: encrypt(phone) } })
+//     // // + -> to convert string to number because .env return string 
+//     // await sendOTP(email, otp)
+//     // // return res.status(201).json({ message: "user created successfully", user })
+//     successResponse({ res, status: 201, message: "user created successfully", data: user })
+// }
 export const signUp = async (req, res, next) => {
-    const { userName, email, password, age, gender, phone } = req.body
+    console.log(req.file)
 
-    if (await db_service.findOne({ model: userModel, filter: { email } })) {
-        return res.status(409).json({ message: "email already exist" })
+
+    try {
+
+        const { userName, email, password, age, gender, phone } = req.body
+
+        if (await db_service.findOne({ model: userModel, filter: { email } })) {
+            return res.status(409).json({ message: "email already exist" })
+        }
+
+        const user = await db_service.create({
+            model: userModel,
+            data: {
+                userName,
+                email,
+                password: Hash({ plan_text: password, salt_round: SALT_ROUND }),
+                age,
+                gender,
+                phone: phone ? encrypt(phone) : undefined
+            }
+        })
+
+        successResponse({
+            res,
+            status: 201,
+            message: "user created successfully",
+            data: user
+        })
+
+    } catch (error) {
+        next(error)
     }
-    const otp = generateOTP()
-    console.log(otp);
-    const user = await db_service.create({ model: userModel, data: { userName, email, password: Hash({ plan_text: password, salt_round: SALT_ROUND }), age, gender, phone: encrypt(phone) } })
-    // + -> to convert string to number because .env return string 
-    await sendOTP(email, otp)
-    // return res.status(201).json({ message: "user created successfully", user })
-    successResponse({ res, status: 201, message: "user created successfully", data: user })
 }
-
 export const signUpWithGmail = async (req, res, next) => {
     const { idToken } = req.body
     // console.log('BODY:', req.body);
