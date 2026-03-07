@@ -47,7 +47,14 @@ const userSchema = new mongoose.Schema({
             return this.provider == ProviderEnum.system ? true : false
         }
     },
-    profilePicture: String,
+    profilePicture: {
+        secure_url: { type: String, required: true },
+        public_id: { type: String, required: true }
+    },
+    coverPhotos: [{
+        secure_url: { type: String, required: true },
+        public_id: { type: String, required: true }
+    }],
     confirmed: Boolean,
     provider: {
         type: String,
