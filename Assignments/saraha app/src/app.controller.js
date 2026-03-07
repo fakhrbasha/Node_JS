@@ -22,6 +22,11 @@ const port = PORT
 const bootstrap = () => {
     app.use(cors(), express.json())
     checkConnectionDb()
+
+    app.use("/upload", express.static("upload")) // to make upload folder public to access it from url http://localhost:4000/users/filename
+    // http://localhost:4000/upload/users/1772564292968-586802944__2.png
+
+
     app.get('/', (req, res) => {
         return res.status(200).json({ message: 'Welcome to Saraha App' })
     })

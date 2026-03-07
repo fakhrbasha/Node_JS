@@ -21,6 +21,10 @@ export function encrypt(text) {
 // Decrypt function
 export function decrypt(text) {
 
+    if (!text || !text.includes(':')) {
+        throw new Error("Invalid encrypted text format");
+    }
+
     const [ivHex, encryptedText] = text.split(':');
 
     const iv = Buffer.from(ivHex, 'hex');

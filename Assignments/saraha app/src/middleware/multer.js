@@ -36,3 +36,21 @@ export const multer_local = ({ custom_path: custom_path = "General", custom_type
     // if you didn't pass storage store in memory storage 
     return upload
 }
+export const multer_host = ({ custom_type: custom_types = [] }) => {
+
+
+    const storage = multer.diskStorage({})
+
+
+    function fileFilter(req, file, cb) {
+
+        if (!custom_types.includes(file.mimetype))
+            cb(new Error('Invalid File Type'))
+        else
+            cb(null, true)
+    }
+
+    const upload = multer({ storage, fileFilter })
+    // if you didn't pass storage store in memory storage 
+    return upload
+}
