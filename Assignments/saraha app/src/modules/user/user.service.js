@@ -13,8 +13,11 @@ import { Compare, Hash } from "../../utils/security/hash.security.js"
 import { ACCESS_SECRET_KEY, PREFIX, REFRESH_SECRET_KEY, SALT_ROUND } from "../../../config/config.service.js"
 import joi from "joi"
 import { signUpSchema } from "./user.validation.js"
-import cloudinary from "../../utils/cloudinary.js"
 import fs from "fs"
+import { randomUUID } from 'crypto'
+import revokeTokenModel from "../../DB/models/revokeToken.model.js"
+import { del, get, get_key, increment, Keys, revoke_keys, setValue } from "../../DB/models/redis/redis.service.js"
+import cloudinary from "../../utils/cloudinary.js"
 // export const signUp = async (req, res, next) => {
 
 //     const signUpSchema = joi.object({
@@ -42,6 +45,11 @@ import fs from "fs"
 //     // // return res.status(201).json({ message: "user created successfully", user })
 //     successResponse({ res, status: 201, message: "user created successfully", data: user })
 // }
+
+
+
+
+
 // export const signUp = async (req, res, next) => {
 
 
@@ -114,20 +122,17 @@ import fs from "fs"
 // }
 
 export const signUp = async (req, res, next) => {
-
-    let uploadedImage = null
-
+    // let uploadedImage = null
     try {
-
         const { userName, email, password, age, gender, phone } = req.body
         const existUser = await db_service.findOne({ model: userModel, filter: { email } })
         if (existUser) {
             throw new Error("email already exist", { cause: 409 })
         }
-        uploadedImage = await cloudinary.uploader.upload(req.file.path, {
-            folder: "sarahaApp/users",
-        })
-        const { public_id, secure_url } = uploadedImage
+        // uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+        //     folder: "sarahaApp/users",
+        // })
+        // const { public_id, secure_url } = uploadedImage
         const user = await db_service.create({
             model: userModel,
             data: {
@@ -137,33 +142,28 @@ export const signUp = async (req, res, next) => {
                 age,
                 gender,
                 phone: phone ? encrypt(phone) : undefined,
-                profilePicture: { public_id, secure_url },
+                // profilePicture: { public_id, secure_url },
             }
         })
-
         // delete local file after successful upload
-        fs.unlinkSync(req.file.path)
-
+        // fs.unlinkSync(req.file.path)
         successResponse({
             res,
             status: 201,
             message: "user created successfully",
             data: user
         })
-
     } catch (error) {
-
         // delete image from cloudinary if uploaded
-        if (uploadedImage?.public_id) {
-            await cloudinary.uploader.destroy(uploadedImage.public_id)
-        }
-
-        // delete local file
-        if (req.file?.path && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path)
-        }
-
+        // if (uploadedImage?.public_id) {
+        //     await cloudinary.uploader.destroy(uploadedImage.public_id)
+        // }
+        // // delete local file
+        // if (req.file?.path && fs.existsSync(req.file.path)) {
+        //     fs.unlinkSync(req.file.path)
+        // }
         next(error)
+
     }
 }
 export const signUpWithGmail = async (req, res, next) => {
@@ -216,14 +216,24 @@ export const signIn = async (req, res, next) => {
         // return res.status(409).json({ message: "invalid password" })
         throw new Error("invalid password", { cause: 409 })
     }
-    const Access_token = generateToken({ payload: { id: user._id }, secretKey: ACCESS_SECRET_KEY, options: { expiresIn: 60 * 5 } })
-    const refresh_token = generateToken({ payload: { id: user._id }, secretKey: REFRESH_SECRET_KEY, options: { expiresIn: "1y" } })
+    const jwtid = randomUUID() // to generate unique id for each token to be able to revoke it by this id   
+    const Access_token = generateToken({ payload: { id: user._id }, secretKey: ACCESS_SECRET_KEY, options: { expiresIn: 60 * 5, jwtid } })
+    const refresh_token = generateToken({ payload: { id: user._id }, secretKey: REFRESH_SECRET_KEY, options: { expiresIn: "1y", jwtid } })
     successResponse({ res, message: "user signed in successfully", data: { ...user._doc, Access_token, refresh_token } })
 
 }
 
 export const getProfile = async (req, res, next) => {
-    successResponse({ res, message: "user profile retrieved successfully", data: req.user })
+    // cash profile
+    const key = `profile::${req.user._id}`
+    const userExist = await get(key)
+    if (userExist) {
+        return successResponse({ res, message: "user profile retrieved successfully", data: userExist })
+    }
+    await setValue({ key, value: req.user, ttl: 60 }) // to cache user profile in redis for 60 seconds to reduce the load on database and improve performance because user profile is accessed frequently and it doesn't change frequently so we can cache it in redis and set ttl for it to automatically delete it after 60 seconds and when user try to access his profile again we check if it's in redis if it is we return it from redis if not we get it from database and cache it in redis again
+
+    const visits = await increment(`profile_visits::${req.user._id}`) // to count number of visits for user profile by incrementing the value in redis for each visit and we can use this data to show it to user or for analytics or to detect any attack if we see a sudden increase in number of visits for user profile that means there is an attack and we can take action to prevent it
+    successResponse({ res, message: "user profile retrieved successfully", data: req.user, visits })
 
 }
 
@@ -246,7 +256,10 @@ export const refreshToken = async (req, res, next) => {
     if (!user) {
         throw new Error("user not exist", { cause: 409 })
     }
-
+    const revokeToken = await db_service.findOne({ model: revokeTokenModel, filter: { tokenId: decoded.jti } })
+    if (revokeToken) {
+        throw new Error("token revoked", { cause: 401 })
+    }
     // then generate new access token
     const Access_token = generateToken({ payload: { id: user._id }, secretKey: ACCESS_SECRET_KEY, options: { expiresIn: 60 * 5 } })
     successResponse({ res, message: "access token refreshed successfully", data: { Access_token } })
@@ -276,6 +289,7 @@ export const updateProfile = async (req, res, next) => {
     if (!user) {
         throw new Error("user not exist", { cause: 409 })
     }
+    await del(`profile::${req.user._id}`) // to delete user profile from redis when update it to get updated profile from database when user try to access his profile again because when user update his profile we need to delete the old profile from redis to get updated profile from database when user try to access his profile again and we can set ttl for user profile in redis to automatically delete it after certain time to get updated profile from database when user try to access his profile again because user profile is accessed frequently and it doesn't change frequently so we can cache it in redis and set ttl for it to automatically delete it after certain time and when user try to access his profile again we check if it's in redis if it is we return it from redis if not we get it from database and cache it in redis again
     successResponse({ res, message: "user profile updated successfully", data: user })
 }
 
@@ -293,4 +307,159 @@ export const updatePassword = async (req, res, next) => {
     await req.user.save()
 
     successResponse({ res, message: "user password updated successfully" })
+}
+export const logout = async (req, res, next) => {
+
+    const { flag } = req.query
+    if (flag === "all") {
+        req.user.changeCredential = new Date() // to invalidate all tokens issued before this time because when user logout we need to invalidate all tokens issued before logout time to prevent any attack from old tokens and we can do that by adding changeCredential field to user model and when user logout we update this field with current time and when user try to access any protected route we compare the changeCredential time with the iat time in token if changeCredential time is greater than iat time that means token is invalid because it was issued before logout time
+        await req.user.save()
+
+        await del(await Keys(get_key({ userId: req.user._id }))) // to delete all revoked tokens for this user from redis because when user logout we need to invalidate all tokens issued before logout time to prevent any attack from old tokens and we can do that by adding changeCredential field to user model and when user logout we update this field with current time and when user try to access any protected route we compare the changeCredential time with the iat time in token if changeCredential time is greater than iat time that means token is invalid because it was issued before logout time so we don't need to keep revoked tokens in database because they will be automatically invalid by changeCredential field and we can delete them from database to save space
+        // await db_service.deleteMany({ model: revokeTokenModel, filter: { userId: req.user._id } })
+        // to delete all revoked tokens for this user from database because when user logout we need to invalidate all tokens issued before logout time to prevent any attack from old tokens and we can do that by adding changeCredential field to user model and when user logout we update this field with current time and when user try to access any protected route we compare the changeCredential time with the iat time in token if changeCredential time is greater than iat time that means token is invalid because it was issued before logout time so we don't need to keep revoked tokens in database because they will be automatically invalid by changeCredential field and we can delete them from database to save space
+
+    } else {
+
+        // await db_service.create({ model: revokeTokenModel, data: { tokenId: req.decoded.jti, userId: req.user._id, expireAt: new Date(req.decoded.exp) * 1000 } }) // to invalidate current token only by adding it to revokeToken collection and when user try to access any protected route we check if the token is in revokeToken collection if it is that means token is invalid because it was revoked by user and we can set expireAt to the same time of token expire time to automatically delete the revoked token from database after expire time
+        await setValue({
+            key: revoke_keys({ userid: req.user._id, jti: req.decoded.jti }),
+            value: `${req.decoded.jti}`,
+            ttl: req.decoded.exp - Math.floor(Date.now() / 1000) // to set ttl for revoked token in redis to automatically delete it after expire time and we can calculate ttl by subtracting current time from token expire time because both times are in seconds since epoch
+        })
+    }
+
+
+    successResponse({ res, message: "user logged out successfully" })
+}
+
+export const getProfileVisits = async (req, res, next) => {
+
+    const { id } = req.params
+
+    const visits = await get(`profile_visits::${id}`)
+
+    successResponse({
+        res,
+        message: "profile visits retrieved",
+        data: {
+            visits: Number(visits) || 0
+        }
+    })
+}
+
+
+export const uploadImages = async (req, res, next) => {
+
+    let uploadedImages = []
+
+    try {
+
+        const user = await db_service.findOne({
+            model: userModel,
+            filter: { _id: req.user._id }
+        })
+
+        if (!user) {
+            throw new Error("user not found", { cause: 404 })
+        }
+        if (req.files?.profile_picture) {
+            const file = req.files.profile_picture[0]
+            const uploaded = await cloudinary.uploader.upload(file.path, {
+                folder: "sarahaApp/users/profile"
+            })
+            const newProfile = {
+                public_id: uploaded.public_id,
+                secure_url: uploaded.secure_url
+            }
+            uploadedImages.push(uploaded.public_id)
+
+            if (user.profilePicture?.public_id) {
+                user.gallery.push(user.profilePicture)
+            }
+
+            user.profilePicture = newProfile
+
+            // delete local file
+            fs.unlinkSync(file.path)
+        }
+
+        // cover photo
+        if (req.files?.cover_photos) {
+
+            const existing = user.coverPhotos?.length || 0
+            const uploadedCount = req.files.cover_photos.length
+
+            if (existing + uploadedCount !== 2) {
+                throw new Error("cover photos must equal 2", { cause: 400 })
+            }
+
+            let covers = []
+
+            for (const file of req.files.cover_photos) {
+
+                const uploaded = await cloudinary.uploader.upload(file.path, {
+                    folder: "sarahaApp/users/covers"
+                })
+
+                covers.push({
+                    public_id: uploaded.public_id,
+                    secure_url: uploaded.secure_url
+                })
+
+                uploadedImages.push(uploaded.public_id)
+
+                fs.unlinkSync(file.path)
+            }
+
+            user.coverPhotos = [...(user.coverPhotos || []), ...covers]
+        }
+
+        await user.save()
+
+        res.status(200).json({
+            message: "images uploaded successfully",
+            data: user
+        })
+
+    } catch (error) {
+        for (const id of uploadedImages) {
+            await cloudinary.uploader.destroy(id)
+        }
+
+        next(error)
+    }
+}
+export const removeProfileImage = async (req, res, next) => {
+
+    try {
+
+        const user = await db_service.findOne({
+            model: userModel,
+            filter: { _id: req.user._id }
+        })
+
+        if (!user.profilePicture) {
+            throw new Error("No profile picture found", { cause: 404 })
+        }
+
+        await cloudinary.uploader.destroy(user.profilePicture.public_id)
+
+        const updatedUser = await db_service.findOneAndUpdate({
+            model: userModel,
+            filter: { _id: req.user._id },
+            update: {
+                $unset: { profilePicture: 1 }
+            },
+            options: { new: true }
+        })
+
+        res.status(200).json({
+            message: "profile image removed",
+            data: updatedUser
+        })
+
+    } catch (error) {
+        next(error)
+    }
 }

@@ -19,16 +19,16 @@ export const signUpSchema = {
 
         // active: joi.boolean().truthy("yes", "y", 1).falsy("no", "n", 0).sensitive() // must n small
     }),
-    file: general_rules.file.required(),// to validate file that come from multer because multer add file to req and the name of it is file and it contain all information about file like path and originalname and mimetype and size and etc
+    // file: general_rules.file.required(),// to validate file that come from multer because multer add file to req and the name of it is file and it contain all information about file like path and originalname and mimetype and size and etc
     // files: general_rules.files.required() // to validate multiple files that come from multer because multer add files to req and the name of it is files and it contain all information about files like path and originalname and mimetype and size and etc
     // to validate file that come from multer because multer add file to req and the name of it is file and it contain all information about file like path and originalname and mimetype and size and etc
 
 
     // files: joi.array().max(3).items(general_rules.file.required()).required() // to validate multiple files that come from multer because multer add files to req and the name of it is files and it contain all information about files like path and originalname and mimetype and size and etc
-    files: joi.object({
-        avatar: joi.array().max(1).items(general_rules.file.required()).required(),
-        coverPhotos: joi.array().max(2).items(general_rules.file.required()).required()
-    })
+    // files: joi.object({
+    //     avatar: joi.array().max(1).items(general_rules.file.required()).required(),
+    //     coverPhotos: joi.array().max(2).items(general_rules.file.required()).required()
+    // })
     // files: joi.object(
     //     {
     //         avatar: joi.array().max(1).items(

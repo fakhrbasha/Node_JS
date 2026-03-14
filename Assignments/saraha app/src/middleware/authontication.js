@@ -1,5 +1,7 @@
 import { ACCESS_SECRET_KEY, PREFIX } from "../../config/config.service.js";
 import * as db_service from "../DB/db.service.js";
+import { get, revoke_keys } from "../DB/models/redis/redis.service.js";
+import revokeTokenModel from "../DB/models/revokeToken.model.js";
 import userModel from "../DB/models/user.model.js";
 import { verifyToken } from "../utils/token/jwt.js";
 
@@ -23,7 +25,18 @@ export const authentication = async (req, res, next) => {
     if (!user) {
         throw new Error("user not exist", { cause: 409 })
     }
+    // getTime to convert date in ms and iat in token is in seconds so we need to multiply it by 1000 to convert it to ms
+    if (user?.changeCredential?.getTime() > decoded.iat * 1000) {
+        throw new Error("token expired", { cause: 401 })
+    }
+
+    // const revokeToken = await db_service.findOne({ model: revokeTokenModel, filter: { tokenId: decoded.jti } })
+    const revokeToken = await get(revoke_keys({ userid: decoded.id, jti: decoded.jti }))
+    if (revokeToken) {
+        throw new Error("invalid token revoked", { cause: 401 })
+    }
     req.user = user
+    req.decoded = decoded
     next()
 
 }

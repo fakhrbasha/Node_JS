@@ -12,6 +12,7 @@ const app = express()
 import cors from 'cors'
 import dotenv from "dotenv";
 import { PORT } from '../config/config.service.js'
+import { redisConnection } from './DB/models/redis/redis.db.js'
 dotenv.config();
 
 const port = PORT
@@ -22,6 +23,9 @@ const port = PORT
 const bootstrap = () => {
     app.use(cors(), express.json())
     checkConnectionDb()
+    // redis connection
+    redisConnection()
+
 
     app.use("/upload", express.static("upload")) // to make upload folder public to access it from url http://localhost:4000/users/filename
     // http://localhost:4000/upload/users/1772564292968-586802944__2.png

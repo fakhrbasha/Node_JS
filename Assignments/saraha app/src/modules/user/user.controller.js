@@ -9,33 +9,50 @@ import { validation } from "../../middleware/validation.middleware.js";
 import { shareProfileSchema, signInSchema, signUpSchema, updatePasswordSchema, updateProfileSchema } from "./user.validation.js";
 const userRouter = Router()
 // [ [] , [] ] spreed multer enum to contain in one array
+
 // userRouter.post('/signup', multer_local({ custom_path: "users", custom_type: [...multer_enum.image] }).single("avatar"), US.signUp)
 
 
-userRouter.post('/signup',
-    multer_host({ custom_type: [...multer_enum.image] }).single("avatar"),
-    validation(signUpSchema),
-    US.signUp) // for cloudinary because it need path to upload file and multer_host return storage in memory storage and multer_local return storage in disk storage
+// userRouter.post('/signup',
+//     multer_host({ custom_type: [...multer_enum.image] }).single("avatar"),
+//     validation(signUpSchema),
+//     US.signUp) // for cloudinary because it need path to upload file and multer_host return storage in memory storage and multer_local return storage in disk storage
 
 // must use validation after multer
 
 // userRouter.post('/signup', multer_local({ custom_path: "users", custom_type: [...multer_enum.image, ...multer_enum.pdf] }).array("avatars", 2 /* max count */), US.signUp) // to upload multiple files and in postman send key avatar and select multiple files
 
 
-// userRouter.post('/signup', multer_local({ custom_path: "users", custom_type: [...multer_enum.image] }).fields([
-//     { name: "avatar", maxCount: 1 },
-//     { name: "coverPhotos", maxCount: 2 }
+// userRouter.post('/signup', multer_host({ custom_type: [...multer_enum.image] }).fields([
+//     { name: "profile_picture", maxCount: 1 },
+//     { name: "cover_photos", maxCount: 2 }
 // ]), US.signUp)  // to upload multiple files with different keys and in postman send key avatar and select multiple files and send another key coverPhotos and select multiple files
 
 
-// userRouter.post('/signup', validation(signUpSchema), US.signUp)
+userRouter.post('/signup', validation(signUpSchema), US.signUp)
+
+userRouter.post("/upload-images", multer_host({
+    custom_type: [...multer_enum.image]
+}).fields([
+    { name: "profile_picture", maxCount: 1 },
+    { name: "cover_photos", maxCount: 2 }
+]), authentication, US.uploadImages)
+
 userRouter.post('/signup/gmail', US.signUpWithGmail)
 userRouter.post('/signin', validation(signInSchema), US.signIn)
+userRouter.post('/logout', authentication, US.logout)
 userRouter.get('/profile', authentication, authorization(RoleEnum.user), US.getProfile)
 userRouter.get('/refresh-token', US.refreshToken)
 userRouter.patch('/update-profile', validation(updateProfileSchema), authentication, US.updateProfile)
 userRouter.patch('/update-password', validation(updatePasswordSchema), authentication, US.updatePassword)
+userRouter.delete(
+    "/profile-picture",
+    authentication,
+    US.removeProfileImage
+)
 userRouter.get('/share-profile/:id', validation(shareProfileSchema), US.shareProfile)
+userRouter.get('/:id/profile', authentication, US.getProfileVisits)
+
 // if make authorization empty apply to user and admin
 
 
