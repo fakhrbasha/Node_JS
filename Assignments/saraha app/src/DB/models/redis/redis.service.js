@@ -7,6 +7,33 @@ export const revoke_keys = ({ userid, jti }) => {
 export const get_key = ({ userId }) => {
     return `revoke_token::${userId}`
 }
+
+export const otpKey = (email) => {
+    return `otp::${email}`
+}
+
+export const max_otp_key = (email) => {
+    return `${otpKey(email)}::max`
+}
+export const block_otp_key = (email) => {
+    return `${otpKey(email)}::block`
+}
+export const forgetPass = (email) => {
+    return `forget_password_otp::${email}`
+}
+
+export const loginFail = (email) => {
+    return `login_fail::${email}`
+}
+export const loginBlock = (email) => {
+    return `login_block::${email}`
+}
+export const twoFaKey = (email) => {
+    return `2fa:${email}`
+}
+export const loginOtp = (email) => {
+    return `login_otp:${email}`
+}
 export const increment = async (key) => {
     try {
         return await redisClient.incr(key)

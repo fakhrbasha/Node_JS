@@ -8,79 +8,101 @@ const userSchema = new mongoose.Schema({
         minLength: 3,
         maxLength: 20,
         trim: true
-
     },
+
     lastName: {
         type: String,
-        // required: true,
         minLength: 3,
         maxLength: 20,
         trim: true
     },
+
     email: {
         type: String,
         required: true,
         unique: true,
-        trim: true,
-        // lowercase: true
+        trim: true
     },
+
     password: {
         type: String,
         required: function () {
-            return this.provider == ProviderEnum.system ? true : false
+            return this.provider == ProviderEnum.system
         },
-        minLength: 6,
-        trim: true
+        minLength: 6
+    },
 
-    },
-    age: {
-        type: Number,
-    },
+    age: Number,
+
     gender: {
         type: String,
         enum: Object.values(GenderEnum),
         default: GenderEnum.male
     },
+
     phone: {
         type: String,
         required: function () {
-            return this.provider == ProviderEnum.system ? true : false
+            return this.provider == ProviderEnum.system
         }
     },
+
     profilePicture: {
-        secure_url: { type: String },
-        public_id: { type: String }
+        secure_url: String,
+        public_id: String
     },
-    coverPhotos: [{
-        secure_url: { type: String },
-        public_id: { type: String }
-    }],
-    gallery: [{
-        secure_url: { type: String },
-        public_id: { type: String }
-    }],
-    changeCredential: {
-        type: Date
+
+    coverPhotos: [
+        {
+            secure_url: String,
+            public_id: String
+        }
+    ],
+
+    gallery: [
+        {
+            secure_url: String,
+            public_id: String
+        }
+    ],
+
+    changeCredential: Date,
+
+    confirmed: {
+        type: Boolean,
+        default: false
     },
-    confirmed: Boolean,
+
+    twoStepEnabled: {
+        type: Boolean,
+        default: false
+    },
+
+    expiresAt: {
+        type: Date,
+        default: function () {
+            return this.confirmed ? null : Date.now() + 24 * 60 * 60 * 1000
+        },
+        index: { expires: 0 }
+    },
+
     provider: {
         type: String,
         enum: Object.values(ProviderEnum),
         default: ProviderEnum.system
     },
+
     role: {
         type: String,
         enum: Object.values(RoleEnum),
         default: RoleEnum.user
     }
+
 }, {
     timestamps: true,
-    strictQuery: true, // when true, Mongoose will only save fields that are defined in the schema. Any fields that are not defined in the schema will be ignored and not saved to the database.
-    toJSON: { virtuals: true },
+    strictQuery: true,
+    toJSON: { virtuals: true }
 })
-
-
-// make key virtual to get full name of user and split it to first name and last name when set it
 
 userSchema.virtual('userName')
     .get(function () {

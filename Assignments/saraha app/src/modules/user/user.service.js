@@ -7,7 +7,7 @@ import { decrypt, encrypt } from "../../utils/security/encrypt_security.js"
 import { generateToken, verifyToken } from "../../utils/token/jwt.js"
 import { hashSync, compareSync } from 'bcrypt'
 import { generateOTP } from "../../utils/mail/otp.js"
-import { sendOTP } from "../../utils/mail/mail.js"
+// import { sendOTP } from "../../utils/mail/mail.js"
 import { OAuth2Client } from "google-auth-library"
 import { Compare, Hash } from "../../utils/security/hash.security.js"
 import { ACCESS_SECRET_KEY, PREFIX, REFRESH_SECRET_KEY, SALT_ROUND } from "../../../config/config.service.js"
@@ -16,8 +16,9 @@ import { signUpSchema } from "./user.validation.js"
 import fs from "fs"
 import { randomUUID } from 'crypto'
 import revokeTokenModel from "../../DB/models/revokeToken.model.js"
-import { del, get, get_key, increment, Keys, revoke_keys, setValue } from "../../DB/models/redis/redis.service.js"
+import { block_otp_key, del, exists, forgetPass, get, get_key, increment, Keys, loginBlock, loginFail, loginOtp, max_otp_key, otpKey, revoke_keys, setValue, ttl, twoFaKey } from "../../DB/models/redis/redis.service.js"
 import cloudinary from "../../utils/cloudinary.js"
+import { sendEmail, sendOtp } from "../../utils/mail/mail.js"
 // export const signUp = async (req, res, next) => {
 
 //     const signUpSchema = joi.object({
@@ -142,11 +143,23 @@ export const signUp = async (req, res, next) => {
                 age,
                 gender,
                 phone: phone ? encrypt(phone) : undefined,
+                confirmed: false
                 // profilePicture: { public_id, secure_url },
             }
         })
         // delete local file after successful upload
         // fs.unlinkSync(req.file.path)
+        const otp = await sendOtp()
+        await sendEmail({
+            to: email,
+            subject: "hello To Saraha App",
+            html: `UR confirmation code ${otp}`
+        })
+
+        await setValue({ key: otpKey(email), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 }) // to cache otp in redis for 5 minutes because otp is valid for 5 minutes and we can set ttl for it to automatically delete it after 5 minutes and when user try to confirm his email we check if otp is in redis if it is we compare it with otp that user send if they are equal that means otp is valid and we can confirm user email and delete otp from redis if they are not equal that means otp is invalid and we can return error to user and if otp is not in redis that means otp is expired and we can return error to user
+
+        await setValue({ key: max_otp_key(email), value: 1, ttl: 30 })
+
         successResponse({
             res,
             status: 201,
@@ -207,6 +220,12 @@ export const signUpWithGmail = async (req, res, next) => {
 
 export const signIn = async (req, res, next) => {
     const { email, password } = req.body
+
+    const isBlocked = await ttl(loginBlock(email))
+    if (isBlocked > 0) {
+        throw new Error(`you have exceeded the maximum number of attempts to login please try again later after ${isBlocked} seconds`, { cause: 429 })
+    }
+
     const user = await db_service.findOne({ model: userModel, filter: { email, provider: ProviderEnum.system } })
     if (!user) {
         // return res.status(409).json({ message: "user not exist" })
@@ -214,14 +233,220 @@ export const signIn = async (req, res, next) => {
     }
     if (!compareSync(password, user.password)) {
         // return res.status(409).json({ message: "invalid password" })
+        const fails = await increment(loginFail(email))
+
+        if (fails >= 5) {
+            await setValue({ key: loginBlock(email), value: 1, ttl: 60 * 5 }) // to block user from login for 5m if he exceeded the maximum number of attempts to login and we can set ttl for it to automatically unblock user after 5 minutes and when user try to login we check if he is blocked by checking if loginBlock key exist in redis if it exist that means user is blocked and we can return error to user and if it not exist that means user is not blocked and we can allow him to login and reset loginFail key to 0
+            throw new Error(`you have exceeded the maximum number of attempts to login please try again later after 300 seconds`, { cause: 429 })
+        }
         throw new Error("invalid password", { cause: 409 })
     }
+    await del(loginFail(email)) // to reset login fail count in redis after successful login because when user login successfully we need to reset login fail count to 0 to allow him to login again and we can do that by deleting loginFail key from redis because when user try to login we check if loginFail key exist in redis if it exist that means there is a count of failed login attempts and we can reset it by deleting the key and when user try to login again if he enter wrong password we will create loginFail key in redis with value 1 and increment it for each failed attempt and if it reach 5 we will block user by creating loginBlock key in redis and set ttl for it to automatically unblock user after certain time
+
+    if (user.twoStepEnabled) {
+
+        const otp = await sendOtp()
+
+        await sendEmail({
+            to: email,
+            subject: "Login OTP",
+            html: `Your OTP is ${otp}`
+        })
+
+        await setValue({
+            key: loginOtp(email),
+            value: Hash({ plan_text: `${otp}` }),
+            ttl: 60 * 20
+        })
+
+        return res.json({
+            message: "OTP sent, complete login with OTP"
+        })
+    }
+
     const jwtid = randomUUID() // to generate unique id for each token to be able to revoke it by this id   
     const Access_token = generateToken({ payload: { id: user._id }, secretKey: ACCESS_SECRET_KEY, options: { expiresIn: 60 * 5, jwtid } })
     const refresh_token = generateToken({ payload: { id: user._id }, secretKey: REFRESH_SECRET_KEY, options: { expiresIn: "1y", jwtid } })
+
+
     successResponse({ res, message: "user signed in successfully", data: { ...user._doc, Access_token, refresh_token } })
 
 }
+
+
+export const confirmEmail = async (req, res, next) => {
+    try {
+        const { otp, email } = req.body
+        const otpValue = await get(otpKey(email))
+        if (!otpValue) {
+            throw new Error("otp expired", { cause: 400 })
+        }
+        if (!Compare({ plan_text: otp, cipher_text: otpValue })) {
+            throw new Error("invalid otp", { cause: 400 })
+        }
+        const user = await db_service.findOneAndUpdate({
+            model: userModel,
+            filter: { email, confirmed: false },
+            update: { confirmed: true, expiresAt: null },
+            options: { new: true }
+        })
+        if (!user) {
+            throw new Error("user not exist or already confirmed", { cause: 409 })
+        }
+        await del(otpKey(email)) // to delete otp from redis after successful confirmation because when user confirm his email we don't need otp in redis anymore and we can delete it to save space in redis
+        successResponse({
+            res,
+            message: "email confirmed successfully",
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const resendOtp = async (req, res, next) => {
+    try {
+        const { email } = req.body
+        const user = await db_service.findOne({
+            model: userModel,
+            filter: { email, confirmed: false },
+        })
+        if (!user) {
+            throw new Error("user not exist or already confirmed", { cause: 409 })
+        }
+
+        const isBlocked = await ttl(block_otp_key(email))
+        if (isBlocked > 0) {
+            throw new Error(`you have exceeded the maximum number of attempts to resend otp please try again later after ${isBlocked} seconds`, { cause: 429 })
+        }
+
+        const otpTTl = await ttl(otpKey(email))
+        if (otpTTl > 0) {
+            throw new Error(`you have already sent otp please check your email or try again later after ${otpTTl} seconds`, { cause: 429 })
+        }
+
+        const maxOtp = await get(max_otp_key(email))
+
+        if (maxOtp >= 3) {
+            await setValue({ key: block_otp_key(email), value: "blocked", ttl: 60 * 5 }) // to block user from resending otp for 5m if he exceeded the maximum number of attempts to resend otp and we can set ttl for it to automatically unblock user after 1 hour and when user try to resend otp we check if he is blocked by checking if block_otp_key exist in redis if it exist that means user is blocked and we can return error to user and if it not exist that means user is not blocked and we can allow him to resend otp and increment max_otp_key by 1 to count number of attempts to resend otp
+            throw new Error(`you have exceeded the maximum number of attempts to resend otp please try again later after 300 seconds`, { cause: 429 })
+        }
+
+        const otp = await sendOtp()
+        await sendEmail({
+            to: email,
+            subject: "hello To Saraha App",
+            html: `UR confirmation code ${otp}`
+        })
+
+        await setValue({ key: otpKey(email), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 }) // to cache otp in redis for 5 minutes because otp is valid for 5 minutes and we can set ttl for it to automatically delete it after 5 minutes and when user try to confirm his email we check if otp is in redis if it is we compare it with otp that user send if they are equal that means otp is valid and we can confirm user email and delete otp from redis if they are not equal that means otp is invalid and we can return error to user and if otp is not in redis that means otp is expired and we can return error to user
+
+        await increment(max_otp_key(email))
+
+
+        successResponse({
+            message: "otp resent successfully",
+            res
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const enable2FA = async (req, res, next) => {
+    const email = req.user.email
+
+    const otp = await sendOtp()
+
+    await sendEmail({
+        to: email,
+        subject: "Enable 2FA",
+        html: `Your OTP is ${otp}`
+    })
+
+    await setValue({
+        key: twoFaKey(email),
+        value: Hash({ plan_text: `${otp}` }),
+        ttl: 60 * 20
+    })
+
+    successResponse({
+        res,
+        message: "OTP sent to enable 2FA"
+    })
+}
+
+export const confirm2FA = async (req, res, next) => {
+    const { otp } = req.body
+    const email = req.user.email
+
+    const stored = await get(twoFaKey(email))
+
+    if (!stored) {
+        throw new Error("otp expired")
+    }
+
+    if (!Compare({ plan_text: otp, cipher_text: stored })) {
+        throw new Error("invalid otp")
+    }
+
+    await db_service.findOneAndUpdate({
+        model: userModel,
+        filter: { email },
+        update: { twoStepEnabled: true, expiresAt: null },
+    })
+
+    await del(twoFaKey(email))
+
+    successResponse({
+        res,
+        message: "2FA enabled successfully"
+    })
+}
+
+
+
+export const confirmLogin = async (req, res, next) => {
+    const { email, otp } = req.body
+
+    const stored = await get(loginOtp(email))
+
+    if (!stored) {
+        throw new Error("otp expired")
+    }
+
+    if (!Compare({ plan_text: otp, cipher_text: stored })) {
+        throw new Error("invalid otp")
+    }
+
+    const user = await db_service.findOne({
+        model: userModel,
+        filter: { email }
+    })
+
+    const jwtid = randomUUID()
+
+    const Access_token = generateToken({
+        payload: { id: user._id },
+        secretKey: ACCESS_SECRET_KEY,
+        options: { expiresIn: 60 * 20, jwtid }
+    })
+
+    const refresh_token = generateToken({
+        payload: { id: user._id },
+        secretKey: REFRESH_SECRET_KEY,
+        options: { expiresIn: "1y", jwtid }
+    })
+
+    await del(loginOtp(email))
+
+    successResponse({
+        res,
+        message: "login success",
+        data: { Access_token, refresh_token }
+    })
+}
+
+
 
 export const getProfile = async (req, res, next) => {
     // cash profile
@@ -462,4 +687,44 @@ export const removeProfileImage = async (req, res, next) => {
     } catch (error) {
         next(error)
     }
+}
+
+// forget pass
+
+export const forgetPassword = async (req, res, next) => {
+    const { email } = req.body
+
+    const user = await db_service.findOne({ model: userModel, filter: { email } })
+    if (!user) {
+        throw new Error("user not exist", { cause: 409 })
+    }
+    const otp = await sendOtp()
+    await sendEmail({
+        to: email,
+        subject: "Reset Your Password",
+        html: `Your password reset code is ${otp}`
+    })
+    await setValue({ key: forgetPass(email), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 }) // to cache otp in redis for 5 minutes because otp is valid for 5 minutes and we can set ttl for it to automatically delete it after 5 minutes and when user try to reset his password we check if otp is in redis if it is we compare it with otp that user send if they are equal that means otp is valid and we can allow user to reset his password and delete otp from redis if they are not equal that means otp is invalid and we can return error to user and if otp is not in redis that means otp is expired and we can return error to user
+
+    successResponse({
+        res,
+        message: "password reset otp sent to email successfully"
+    })
+}
+export const resetPassword = async (req, res, next) => {
+    const { email, otp, newPassword } = req.body
+    const otpValue = await get(forgetPass(email))
+    if (!otpValue) {
+        throw new Error("otp expired", { cause: 400 })
+    }
+    if (!Compare({ plan_text: otp, cipher_text: otpValue })) {
+        throw new Error("invalid otp", { cause: 400 })
+    }
+
+    const hash = Hash({ plan_text: newPassword, salt_round: SALT_ROUND })
+
+    const newPass = await db_service.findOneAndUpdate({ model: userModel, filter: { email }, update: { password: hash } })
+    await del(forgetPass(email)) // to delete otp from redis after successful password reset because when user reset his password we don't need otp in redis anymore and we can delete it to save space in redis
+
+    successResponse({ res, message: "Password reset success" })
 }

@@ -6,7 +6,7 @@ import { RoleEnum } from "../../common/enum/user.enum.js";
 import { multer_host, multer_local } from "../../middleware/multer.js";
 import { multer_enum } from "../../common/enum/multer.enum.js";
 import { validation } from "../../middleware/validation.middleware.js";
-import { shareProfileSchema, signInSchema, signUpSchema, updatePasswordSchema, updateProfileSchema } from "./user.validation.js";
+import { confirmEmailSchema, shareProfileSchema, signInSchema, signUpSchema, updatePasswordSchema, updateProfileSchema } from "./user.validation.js";
 const userRouter = Router()
 // [ [] , [] ] spreed multer enum to contain in one array
 
@@ -39,7 +39,14 @@ userRouter.post("/upload-images", multer_host({
 ]), authentication, US.uploadImages)
 
 userRouter.post('/signup/gmail', US.signUpWithGmail)
+userRouter.post('/confirm-email', validation(confirmEmailSchema), US.confirmEmail)
+userRouter.post('/resend-otp', US.resendOtp)
+userRouter.post('/forget-password', US.forgetPassword)
+userRouter.post('/reset-password', US.resetPassword)
 userRouter.post('/signin', validation(signInSchema), US.signIn)
+userRouter.post('/enable-2fa', authentication, US.enable2FA)
+userRouter.post('/confirm-2fa', authentication, US.confirm2FA)
+userRouter.post('/confirm-login', US.confirmLogin)
 userRouter.post('/logout', authentication, US.logout)
 userRouter.get('/profile', authentication, authorization(RoleEnum.user), US.getProfile)
 userRouter.get('/refresh-token', US.refreshToken)

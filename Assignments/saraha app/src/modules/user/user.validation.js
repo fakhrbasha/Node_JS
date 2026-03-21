@@ -16,6 +16,7 @@ export const signUpSchema = {
         cPassword: general_rules.cPassword.required(),
         phone: joi.string().required(),
         gender: joi.string().valid(...Object.values(GenderEnum)).required(), // valid [male , female]
+        confirmed: joi.boolean().truthy("yes", "y", 1).falsy("no", "n", 0).sensitive() // must n small
 
         // active: joi.boolean().truthy("yes", "y", 1).falsy("no", "n", 0).sensitive() // must n small
     }),
@@ -102,5 +103,12 @@ export const updatePasswordSchema = {
         cPassword: joi.string().valid(joi.ref("newPassword")).required().messages({
             "any.only": "cPassword must be the same as newPassword"
         })
+    })
+}
+
+export const confirmEmailSchema = {
+    body: joi.object({
+        email: general_rules.email.required(),
+        otp: joi.string().length(6).required()
     })
 }
