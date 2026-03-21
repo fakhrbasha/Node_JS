@@ -1,29 +1,33 @@
 import nodemailer from 'nodemailer';
+import { GMAIL_PASS, GMAIL_USER } from '../../../config/config.service.js';
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASS
-    }
-})
+export const sendEmail = async ({ to, subject = "", html = "", attachments = [] }) => {
+    const transporter = nodemailer.createTransport({
+        //   host: "smtp.ethereal.email",
+        //   port: 587,
+        //   secure: false, // Use true for port 465, false for port 587
+        service: "gmail",
+        auth: {
+            user: GMAIL_USER,
+            pass: GMAIL_PASS
+        },
+    });
 
+    // Send an email using async/await
 
-export async function sendOTP(to, otp) {
-    const mailOptions = {
-        from: process.env.GMAIL_USER,
+    const info = await transporter.sendMail({
+        from: `"FAKHR "<${GMAIL_USER}>`,
         to,
-        subject: "Your OTP Code",
-        text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
-    }
+        subject,
+        html,
+        attachments
+    });
 
-    try {
-        const info = await transporter.sendMail(mailOptions)
-        console.log("Email : ", info.response);
-        return true
-    } catch (error) {
-        console.error("Error sending email:", error);
-        return false;
-    }
+    // console.log("Message sent:", info.messageId);
+    return info.accepted.length ? true : false
+
 }
 
+export const sendOtp = async () => {
+    return Math.floor(100000 + Math.random() * 900000)
+}
