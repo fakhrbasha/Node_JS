@@ -1,3 +1,4 @@
+import { emailEnum } from "../../../common/enum/email.enum.js";
 import { redisClient } from "./redis.db.js";
 
 
@@ -8,8 +9,8 @@ export const get_key = ({ userId }) => {
     return `revoke_token::${userId}`
 }
 
-export const otpKey = (email) => {
-    return `otp::${email}`
+export const otpKey = (email, subject = emailEnum.confirmedEmail) => {
+    return `otp::${email}::${subject}`
 }
 
 export const max_otp_key = (email) => {
