@@ -26,7 +26,7 @@ export const general_rules = {
         filename: joi.string(),
         path: joi.string(),
         size: joi.number(),
-    }).required().messages({
+    }).messages({
         "any.required": "avatar is required",
         "object.base": "avatar must be a file"
     }),
