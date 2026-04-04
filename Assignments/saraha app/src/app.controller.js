@@ -11,18 +11,64 @@ import userRouter from './modules/user/user.controller.js'
 const app = express()
 import cors from 'cors'
 import dotenv from "dotenv";
-import { PORT } from '../config/config.service.js'
+import { PORT, WHITE_CORS } from '../config/config.service.js'
 import { redisConnection } from './DB/models/redis/redis.db.js'
 import messageRouter from './modules/message/message.controller.js'
+import helmet from 'helmet'
+import { rateLimit } from 'express-rate-limit'
 dotenv.config();
 
 const port = PORT
 
+// cors : to allow uri access api 
+// cors of postman undefined
+
+
+// to make limit for your request use package express rate limiter
 
 
 
 const bootstrap = () => {
-    app.use(cors(), express.json())
+    const limit = rateLimit({
+        windowMs: 60 * 5 * 1000, // time with ms
+        limit: 10,
+        message: "game over",
+        statusCode: 400,
+        requestPropertyName: "rate_limit",
+        handler: (req, res, next) => {
+            return res.status(401).json({ Message: "game over" })
+            //             {
+            //     "Message": "game over"
+            // }
+        },
+        // legacyHeaders: false // to hidden whit time can send request
+
+        // X-RateLimit-Limit
+        // 3
+        // X-RateLimit-Remaining
+        // 0
+        // Date
+        // Tue, 31 Mar 2026 20:52:11 GMT
+        // X-RateLimit-Reset
+        // 1774990622
+        // Retry-After
+        // 291 sec
+
+
+    })
+
+    const corsOptions = {
+        origin: function (origin, callback) {
+
+            if ([...WHITE_CORS, undefined].includes(origin)) {
+                callback(null, true)
+            } else {
+                callback(new Error("not allow by cors"))
+            }
+        }
+    }
+
+    app.use(cors(corsOptions), helmet(), limit, express.json())
     checkConnectionDb()
     // redis connection
     redisConnection()

@@ -57,7 +57,9 @@ export const getMessages = async (req, res, next) => {
     const messages = await db_service.find({
         model: messageModel,
         filter: {
-            userId: req.user._id
+            // userId: req.user._id
+            userId: req.params.userId
+            // userId: req.params.userId but here must make margeParams true option in message controller
         }
     })
     if (!messages) {

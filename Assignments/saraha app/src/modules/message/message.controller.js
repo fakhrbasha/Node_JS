@@ -6,7 +6,7 @@ import { multer_enum } from "../../common/enum/multer.enum.js";
 import { validation } from "../../middleware/validation.middleware.js";
 import { authentication } from "../../middleware/authontication.js";
 
-const messageRouter = Router()
+const messageRouter = Router({ mergeParams: true })
 
 messageRouter.post('/send',
     multer_local(
@@ -20,6 +20,8 @@ messageRouter.post('/send',
 
 )
 messageRouter.get('/me', authentication, MS.getMessages)
+
+
 messageRouter.get('/:messageId', authentication, validation(MV.getMessageSchema), MS.getMessage)
 
 

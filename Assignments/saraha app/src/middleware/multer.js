@@ -16,7 +16,7 @@ export const multer_local = ({ custom_path: custom_path = "General", custom_type
             cb(null, full_path)
         },
         filename: function (req, file, cb) {
-            console.log("before", file);
+            // console.log("before", file);
 
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
             cb(null, uniqueSuffix + "__" + file.originalname)

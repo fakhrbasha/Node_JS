@@ -10,7 +10,7 @@ import { generateOTP } from "../../utils/mail/otp.js"
 // import { sendOTP } from "../../utils/mail/mail.js"
 import { OAuth2Client } from "google-auth-library"
 import { Compare, Hash } from "../../utils/security/hash.security.js"
-import { ACCESS_SECRET_KEY, PREFIX, REFRESH_SECRET_KEY, SALT_ROUND } from "../../../config/config.service.js"
+import { ACCESS_SECRET_KEY, PREFIX, REFRESH_SECRET_KEY, RESET_SECRET, SALT_ROUND } from "../../../config/config.service.js"
 import joi from "joi"
 import { signUpSchema } from "./user.validation.js"
 import fs from "fs"
@@ -22,6 +22,7 @@ import { sendEmail, sendOtp } from "../../utils/mail/mail.js"
 import { templateEmail } from "../../utils/mail/email.template.js"
 import { eventEmitter } from "../../utils/mail/email.event.js"
 import { emailEnum } from "../../common/enum/email.enum.js"
+import { resetPasswordTemplate } from "../../utils/templetes/resetTemplete.js"
 // export const signUp = async (req, res, next) => {
 
 //     const signUpSchema = joi.object({
@@ -700,42 +701,147 @@ export const removeProfileImage = async (req, res, next) => {
 
 // forget pass
 
+// export const forgetPassword = async (req, res, next) => {
+//     const { email } = req.body
+
+//     const user = await db_service.findOne({ model: userModel, filter: { email, confirmed: true, provider: ProviderEnum.system } })
+//     if (!user) {
+//         throw new Error("user not exist", { cause: 409 })
+//     }
+
+//     await sendEmailOtp(email, emailEnum.forgetPassword)
+//     // const otp = await sendOtp()
+//     // await sendEmail({
+//     //     to: email,
+//     //     subject: "Reset Your Password",
+//     //     html: `Your password reset code is ${otp}`
+//     // })
+//     // await setValue({ key: forgetPass(email), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 }) // to cache otp in redis for 5 minutes because otp is valid for 5 minutes and we can set ttl for it to automatically delete it after 5 minutes and when user try to reset his password we check if otp is in redis if it is we compare it with otp that user send if they are equal that means otp is valid and we can allow user to reset his password and delete otp from redis if they are not equal that means otp is invalid and we can return error to user and if otp is not in redis that means otp is expired and we can return error to user
+
+//     successResponse({
+//         res,
+//         message: "password reset otp sent to email successfully"
+//     })
+// }
+// export const resetPassword = async (req, res, next) => {
+//     const { email, otp, newPassword } = req.body
+//     const otpValue = await get(otpKey(email, emailEnum.forgetPassword))
+//     if (!otpValue) {
+//         throw new Error("otp expired", { cause: 400 })
+//     }
+//     if (!Compare({ plan_text: otp, cipher_text: otpValue })) {
+//         throw new Error("invalid otp", { cause: 400 })
+//     }
+
+//     const hash = Hash({ plan_text: newPassword, salt_round: SALT_ROUND })
+
+//     const newPass = await db_service.findOneAndUpdate({ model: userModel, filter: { email }, update: { password: hash, changeCredential: new Date() } })
+//     await del(forgetPass(email)) // to delete otp from redis after successful password reset because when user reset his password we don't need otp in redis anymore and we can delete it to save space in redis
+
+//     successResponse({ res, message: "Password reset success" })
+// }
+
 export const forgetPassword = async (req, res, next) => {
     const { email } = req.body
 
-    const user = await db_service.findOne({ model: userModel, filter: { email, confirmed: true, provider: ProviderEnum.system } })
+    const user = await db_service.findOne({
+        model: userModel,
+        filter: { email, provider: ProviderEnum.system }
+    })
+
     if (!user) {
         throw new Error("user not exist", { cause: 409 })
     }
 
-    await sendEmailOtp(email, emailEnum.forgetPassword)
-    // const otp = await sendOtp()
-    // await sendEmail({
-    //     to: email,
-    //     subject: "Reset Your Password",
-    //     html: `Your password reset code is ${otp}`
-    // })
-    // await setValue({ key: forgetPass(email), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 }) // to cache otp in redis for 5 minutes because otp is valid for 5 minutes and we can set ttl for it to automatically delete it after 5 minutes and when user try to reset his password we check if otp is in redis if it is we compare it with otp that user send if they are equal that means otp is valid and we can allow user to reset his password and delete otp from redis if they are not equal that means otp is invalid and we can return error to user and if otp is not in redis that means otp is expired and we can return error to user
+    const token = generateToken({
+        payload: { email },
+        secretKey: RESET_SECRET,
+        options: { expiresIn: "10m" }
+    })
+
+    await setValue({
+        key: `reset:${token}`,
+        value: email,
+        ttl: 60 * 10
+    })
+
+    const resetLink = `http://localhost:4000/users/reset-password/${token}`
+
+    await sendEmail({
+        to: email,
+        subject: "Reset Password",
+        html: resetPasswordTemplate(resetLink)
+    })
 
     successResponse({
         res,
-        message: "password reset otp sent to email successfully"
+        message: "Reset link sent successfully"
     })
 }
+
 export const resetPassword = async (req, res, next) => {
-    const { email, otp, newPassword } = req.body
-    const otpValue = await get(otpKey(email, emailEnum.forgetPassword))
-    if (!otpValue) {
-        throw new Error("otp expired", { cause: 400 })
+    const { token, newPassword } = req.body
+
+    const decoded = verifyToken({
+        token,
+        secretKey: RESET_SECRET
+    })
+
+    if (!decoded?.email) {
+        throw new Error("invalid or expired link", { cause: 400 })
     }
-    if (!Compare({ plan_text: otp, cipher_text: otpValue })) {
-        throw new Error("invalid otp", { cause: 400 })
+
+    const stored = await get(`reset:${token}`)
+
+    if (!stored) {
+        throw new Error("link already used or expired", { cause: 400 })
     }
 
-    const hash = Hash({ plan_text: newPassword, salt_round: SALT_ROUND })
+    const hash = Hash({
+        plan_text: newPassword,
+        salt_round: SALT_ROUND
+    })
 
-    const newPass = await db_service.findOneAndUpdate({ model: userModel, filter: { email }, update: { password: hash, changeCredential: new Date() } })
-    await del(forgetPass(email)) // to delete otp from redis after successful password reset because when user reset his password we don't need otp in redis anymore and we can delete it to save space in redis
+    await db_service.findOneAndUpdate({
+        model: userModel,
+        filter: { email: decoded.email },
+        update: {
+            password: hash,
+            changeCredential: new Date()
+        }
+    })
 
-    successResponse({ res, message: "Password reset success" })
+    await del(`reset:${token}`)
+
+    successResponse({
+        res,
+        message: "Password reset successfully"
+    })
+}
+
+
+// but cors not allow 
+export const getResetPage = async (req, res) => {
+    const { token } = req.params
+
+    res.send(`
+        <html>
+        <body style="font-family: Arial; text-align:center; margin-top:50px;">
+            <h2>Reset Password </h2>
+
+            <form method="POST" action="/users/reset-password">
+                <input type="hidden" name="token" value="${token}" />
+
+                <input type="password" name="newPassword" placeholder="Enter new password" required 
+                style="padding:10px; margin:10px; width:250px;" />
+
+                <br/>
+
+                <button style="padding:10px 20px; background:#4CAF50; color:white; border:none;">
+                    Reset Password
+                </button>
+            </form>
+        </body>
+        </html>
+    `)
 }

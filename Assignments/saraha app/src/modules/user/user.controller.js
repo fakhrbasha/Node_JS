@@ -7,7 +7,26 @@ import { multer_host, multer_local } from "../../middleware/multer.js";
 import { multer_enum } from "../../common/enum/multer.enum.js";
 import { validation } from "../../middleware/validation.middleware.js";
 import { confirmEmailSchema, shareProfileSchema, signInSchema, signUpSchema, updatePasswordSchema, updateProfileSchema } from "./user.validation.js";
-const userRouter = Router()
+import messageRouter from "../message/message.controller.js";
+const userRouter = Router({ caseSensitive: true, strict: true })
+
+// router option
+//  - case sensitive : caseSensitive:true if i need make api caseSensitive
+// /signin/ -> strict : true -> to make api like you write it 100%
+
+// router merge
+
+// if i have endpoint /messages and i need this endpoint /user/userId/messages
+
+userRouter.use("/:userId/message", messageRouter)
+
+// before
+//  http://localhost:4000/message/me
+// after
+// http://localhost:4000/users/69c598b0688dd53eda2e8638/message/me
+
+// if you need now get messages from params write in messageRouter mergeParams true to skip error params undefined
+
 // [ [] , [] ] spreed multer enum to contain in one array
 
 // userRouter.post('/signup', multer_local({ custom_path: "users", custom_type: [...multer_enum.image] }).single("avatar"), US.signUp)
@@ -43,6 +62,7 @@ userRouter.post('/confirm-email', validation(confirmEmailSchema), US.confirmEmai
 userRouter.post('/resend-otp', US.resendOtp)
 userRouter.post('/forget-password', US.forgetPassword)
 userRouter.post('/reset-password', US.resetPassword)
+userRouter.get('/reset-password/:token', US.getResetPage)
 userRouter.post('/signin', validation(signInSchema), US.signIn)
 userRouter.post('/enable-2fa', authentication, US.enable2FA)
 userRouter.post('/confirm-2fa', authentication, US.confirm2FA)
