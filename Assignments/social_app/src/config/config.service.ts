@@ -1,0 +1,25 @@
+import { resolve } from "path";
+
+import { config } from "dotenv";
+const NODE_ENV = process.env.NODE_ENV; // development 0r production
+config({ path: resolve(__dirname, `../../.env.${NODE_ENV}`) });
+
+
+export const PORT: number = Number(process.env.PORT)
+export const MONGO_URI: string = process.env.MONGO_URI!; // the ! is used to tell TypeScript that we are sure that this variable will not be undefined, because we have already checked it in the checkEnvVariables function in the src/app.ts file, so we can use it without checking it again in the src/DB/connectionDB.ts file.
+export const SALT_ROUND: number = Number(process.env.SALT_ROUND)
+export const ENCRYPTION_KEY: string = process.env.ENCRYPTION_KEY!
+export const GMAIL_USER: string = process.env.GMAIL_USER!
+export const GMAIL_PASS: string = process.env.GMAIL_PASS!
+export const ACCESS_SECRET_KEY: string = process.env.ACCESS_SECRET_KEY!
+export const REFRESH_SECRET_KEY: string = process.env.REFRESH_SECRET_KEY!
+export const PREFIX: string = process.env.PREFIX!
+export const REDIS_URL: string = process.env.REDIS_URL!
+
+
+
+
+
+
+
+
