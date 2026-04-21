@@ -17,7 +17,7 @@ export enum providerEnum {
     facebook = "facebook"
 }
 
-export const emailEnum = {
-    confirmedEmail: "confirmedEmail",
-    forgetPassword: "forgetPassword"
+export enum EmailEnum {
+    confirmedEmail = "confirmedEmail",
+    forgetPassword = "forgetPassword"
 }

@@ -7,28 +7,41 @@ exports.authentication = void 0;
 const global_error_handling_1 = require("../utils/global-error-handling");
 const config_service_1 = require("../../config/config.service");
 const jwt_1 = require("../utils/jwt/jwt");
-const user_model_1 = __importDefault(require("../../DB/models/user.model"));
+const user_repository_1 = __importDefault(require("../../DB/repository/user.repository"));
+const userModel = new user_repository_1.default();
 const authentication = async (req, res, next) => {
     const { authorization } = req.headers;
     if (!authorization) {
         throw new global_error_handling_1.AppError("Unauthorized", 401);
     }
     const [prefix, token] = authorization.split(" ");
-    if (prefix !== config_service_1.PREFIX || !token) {
+    let ACCESS_SECRET_KEY = '';
+    if (prefix == config_service_1.PREFIX_USER) {
+        ACCESS_SECRET_KEY = config_service_1.ACCESS_SECRET_KEY_USER;
+    }
+    else if (prefix == config_service_1.PREFIX_ADMIN) {
+        ACCESS_SECRET_KEY = config_service_1.ACCESS_SECRET_KEY_ADMIN;
+    }
+    else {
+        throw new global_error_handling_1.AppError("InValid Prefix Key", 400);
+    }
+    if (!token) {
         throw new global_error_handling_1.AppError("invalid token format", 401);
     }
     const decoded = (0, jwt_1.verifyToken)({
         token,
-        secretKey: config_service_1.ACCESS_SECRET_KEY
+        secretKey: ACCESS_SECRET_KEY
     });
-    if (!decoded?.id) {
+    if (!decoded || !decoded?.id) {
         throw new global_error_handling_1.AppError("Invalid token", 401);
     }
-    const user = await user_model_1.default
-        .findById(decoded.id)
-        .select("+password");
+    const user = await userModel
+        .findOne({ filter: { id: decoded.id } });
     if (!user) {
         throw new global_error_handling_1.AppError("User not found", 404);
+    }
+    if (!user.confirmed) {
+        throw new global_error_handling_1.AppError("user not conformed", 400);
     }
     req.user = user;
     req.decoded = decoded;

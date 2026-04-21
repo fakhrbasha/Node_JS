@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.emailEnum = exports.providerEnum = exports.RoleEnum = exports.GenderEnum = void 0;
+exports.EmailEnum = exports.providerEnum = exports.RoleEnum = exports.GenderEnum = void 0;
 var GenderEnum;
 (function (GenderEnum) {
     GenderEnum["male"] = "male";
@@ -18,7 +18,8 @@ var providerEnum;
     providerEnum["google"] = "google";
     providerEnum["facebook"] = "facebook";
 })(providerEnum || (exports.providerEnum = providerEnum = {}));
-exports.emailEnum = {
-    confirmedEmail: "confirmedEmail",
-    forgetPassword: "forgetPassword"
-};
+var EmailEnum;
+(function (EmailEnum) {
+    EmailEnum["confirmedEmail"] = "confirmedEmail";
+    EmailEnum["forgetPassword"] = "forgetPassword";
+})(EmailEnum || (exports.EmailEnum = EmailEnum = {}));

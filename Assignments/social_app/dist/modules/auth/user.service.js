@@ -9,13 +9,18 @@ const encrypt_1 = require("../../common/utils/security/encrypt");
 const hash_1 = require("../../common/utils/security/hash");
 const mail_1 = require("../../common/utils/mail/mail");
 const email_template_1 = require("../../common/utils/mail/email.template");
-const redis_service_1 = require("../../common/utils/redis/redis.service");
 const user_enum_1 = require("../../common/enum/user.enum");
 const config_service_1 = require("../../config/config.service");
 const jwt_1 = require("../../common/utils/jwt/jwt");
 const google_auth_library_1 = require("google-auth-library");
+const redis_service_1 = __importDefault(require("../../common/services/redis.service"));
+const node_crypto_1 = require("node:crypto");
+const jwt_service_1 = __importDefault(require("../../common/utils/jwt/jwt.service"));
+const email_event_1 = require("../../common/utils/mail/email.event");
 class UserService {
     _userModel = new user_repository_1.default();
+    _tokenService = jwt_service_1.default;
+    _redisService = redis_service_1.default;
     constructor() { }
     signup = async (req, res, next) => {
         const { username, email, password, confirmPassword, age, gender, address, phone, confirmed = false } = req.body;
@@ -23,6 +28,16 @@ class UserService {
         if (emailExist) {
             return next(new global_error_handling_1.AppError("Email already exists", 409));
         }
+        const otp = await (0, mail_1.sendOtp)();
+        email_event_1.eventEmitter.emit(user_enum_1.EmailEnum.confirmedEmail, async () => {
+            await (0, mail_1.sendEmail)({
+                to: email,
+                subject: "Email confirmation",
+                html: (0, email_template_1.templateEmail)(otp)
+            });
+            await this._redisService.setValue({ key: this._redisService.otpKey({ email, subject: user_enum_1.EmailEnum.confirmedEmail }), value: (0, hash_1.Hash)({ plan_text: `${otp}` }), ttl: 60 * 5 });
+            await this._redisService.setValue({ key: this._redisService.max_otp_key({ email }), value: "1", ttl: 60 * 30 });
+        });
         const user = await this._userModel.create({
             username,
             email,
@@ -33,21 +48,14 @@ class UserService {
             phone: phone ? (0, encrypt_1.encrypt)(phone) : undefined,
             confirmed
         });
-        const otp = await (0, mail_1.sendOtp)();
-        await (0, mail_1.sendEmail)({
-            to: email,
-            subject: "Email confirmation",
-            html: (0, email_template_1.templateEmail)(otp)
-        });
-        await (0, redis_service_1.setValue)({ key: (0, redis_service_1.otpKey)(email, user_enum_1.emailEnum.confirmedEmail), value: (0, hash_1.Hash)({ plan_text: `${otp}` }), ttl: 60 * 5 });
         res.status(200).json({
             message: "User signed up successfully", data: user
         });
     };
     confirmEmail = async (req, res, next) => {
         const { email, otp } = req.body;
-        const otpValue = await (0, redis_service_1.getValue)({
-            key: (0, redis_service_1.otpKey)(email, user_enum_1.emailEnum.confirmedEmail)
+        const otpValue = await this._redisService.get({
+            key: this._redisService.otpKey({ email, subject: user_enum_1.EmailEnum.confirmedEmail })
         });
         if (!otpValue) {
             return next(new global_error_handling_1.AppError("OTP expired", 400));
@@ -62,8 +70,8 @@ class UserService {
             return next(new global_error_handling_1.AppError("User not found", 404));
         }
         const userUpdated = await this._userModel.update({ email }, { confirmed: true });
-        await (0, redis_service_1.deleteKey)({
-            key: (0, redis_service_1.otpKey)(email, user_enum_1.emailEnum.confirmedEmail)
+        await this._redisService.del({
+            key: this._redisService.otpKey({ email, subject: user_enum_1.EmailEnum.confirmedEmail })
         });
         res.status(200).json({
             message: "Email confirmed successfully",
@@ -79,10 +87,20 @@ class UserService {
         if (!(0, hash_1.Compare)({ plan_text: password, cipher_text: user.password })) {
             return next(new global_error_handling_1.AppError("Invalid email or password", 400));
         }
-        const access_token = (0, jwt_1.generateToken)({ payload: { id: user._id }, secretKey: config_service_1.ACCESS_SECRET_KEY });
+        const uuid = (0, node_crypto_1.randomUUID)();
+        const access_token = this._tokenService.generateToken({
+            payload: { id: user._id, email: user.email },
+            secretKey: user?.role == user_enum_1.RoleEnum.user ? config_service_1.ACCESS_SECRET_KEY_USER : config_service_1.ACCESS_SECRET_KEY_ADMIN,
+            options: { jwtid: uuid }
+        });
+        const refresh_token = this._tokenService.generateToken({
+            payload: { id: user._id, email: user.email },
+            secretKey: user?.role == user_enum_1.RoleEnum.user ? config_service_1.REFRESH_SECRET_KEY_USER : config_service_1.REFRESH_SECRET_KEY_ADMIN,
+            options: { jwtid: uuid }
+        });
         return res.status(200).json({
             message: "User signed in successfully",
-            data: { access_token, user }
+            data: { access_token, refresh_token }
         });
     };
     signinWithGoogle = async (req, res, next) => {
@@ -113,7 +131,7 @@ class UserService {
             }
             const access_token = (0, jwt_1.generateToken)({
                 payload: { id: user._id },
-                secretKey: config_service_1.ACCESS_SECRET_KEY,
+                secretKey: config_service_1.ACCESS_SECRET_KEY_USER,
             });
             return res.status(200).json({
                 message: "User signed in with Google successfully",
@@ -136,15 +154,15 @@ class UserService {
             subject: "Reset password OTP",
             html: (0, email_template_1.templateEmail)(otp)
         });
-        await (0, redis_service_1.setValue)({ key: (0, redis_service_1.otpKey)(email, user_enum_1.emailEnum.forgetPassword), value: (0, hash_1.Hash)({ plan_text: `${otp}` }), ttl: 60 * 5 });
+        await this._redisService.setValue({ key: this._redisService.otpKey({ email, subject: user_enum_1.EmailEnum.forgetPassword }), value: (0, hash_1.Hash)({ plan_text: `${otp}` }), ttl: 60 * 5 });
         res.status(200).json({
             message: "OTP sent to email successfully"
         });
     };
     resetPassword = async (req, res, next) => {
         const { newPassword, email, otp } = req.body;
-        const otpValue = await (0, redis_service_1.getValue)({
-            key: (0, redis_service_1.otpKey)(email, user_enum_1.emailEnum.forgetPassword)
+        const otpValue = await this._redisService.get({
+            key: this._redisService.otpKey({ email, subject: user_enum_1.EmailEnum.forgetPassword })
         });
         if (!otpValue) {
             return next(new global_error_handling_1.AppError("OTP expired", 400));
@@ -160,8 +178,8 @@ class UserService {
         }
         const hashedPassword = (0, hash_1.Hash)({ plan_text: newPassword });
         await this._userModel.update({ email }, { password: hashedPassword });
-        await (0, redis_service_1.deleteKey)({
-            key: (0, redis_service_1.otpKey)(email, user_enum_1.emailEnum.forgetPassword)
+        await this._redisService.del({
+            key: this._redisService.otpKey({ email, subject: user_enum_1.EmailEnum.forgetPassword })
         });
         res.status(200).json({
             message: "Password reset successfully"
@@ -182,7 +200,7 @@ class UserService {
     logOut = async (req, res, next) => {
         const token = req.headers.authorization?.split(" ")[1];
         if (token) {
-            await (0, redis_service_1.setValue)({ key: token, value: "invalid", ttl: 60 * 60 });
+            await this._redisService.setValue({ key: token, value: "invalid", ttl: 60 * 60 });
         }
         res.status(200).json({
             message: "User logged out successfully"

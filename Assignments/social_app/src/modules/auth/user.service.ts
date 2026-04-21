@@ -1,21 +1,22 @@
 import { NextFunction, Request, Response } from "express";
-import { ISignUp } from "./user.interfaces";
 import { AppError } from "../../common/utils/global-error-handling";
 import userModel, { IUser } from "../../DB/models/user.model";
 import { HydratedDocument, Model } from "mongoose";
-import { ISignUpType } from "./user.validation";
 import BaseRepository from "../../DB/repository/base.repository";
 import UserRepository from "../../DB/repository/user.repository";
 import { encrypt } from "../../common/utils/security/encrypt";
 import { Compare, Hash } from "../../common/utils/security/hash";
 import { sendEmail, sendOtp } from "../../common/utils/mail/mail";
 import { templateEmail } from "../../common/utils/mail/email.template";
-import { deleteKey, getValue, otpKey, setValue } from "../../common/utils/redis/redis.service";
-import { emailEnum, providerEnum } from "../../common/enum/user.enum";
-import { ACCESS_SECRET_KEY } from "../../config/config.service";
+import { EmailEnum, providerEnum, RoleEnum } from "../../common/enum/user.enum";
+import { ACCESS_SECRET_KEY_ADMIN, ACCESS_SECRET_KEY_USER, REFRESH_SECRET_KEY_ADMIN, REFRESH_SECRET_KEY_USER } from "../../config/config.service";
 import { generateToken } from "../../common/utils/jwt/jwt";
 import { OAuth2Client } from "google-auth-library";
-
+import RedisService from "../../common/services/redis.service";
+import { randomUUID } from "node:crypto"
+import TokenService from "../../common/utils/jwt/jwt.service"
+import { ISignUpType } from "./auth.dto";
+import { eventEmitter } from "../../common/utils/mail/email.event";
 
 class UserService {
 
@@ -23,6 +24,8 @@ class UserService {
     // use repository pattern to make the code more maintainable and testable, so that we can easily switch to another database or ORM in the future without changing the business logic of the application.
     // private readonly _userModel = new BaseRepository<IUser>(userModel)
     private readonly _userModel = new UserRepository()
+    private readonly _tokenService = TokenService
+    private readonly _redisService = RedisService
 
 
 
@@ -39,7 +42,17 @@ class UserService {
         if (emailExist) {
             return next(new AppError("Email already exists", 409))
         }
+        const otp = await sendOtp()
 
+        eventEmitter.emit(EmailEnum.confirmedEmail, async () => {
+            await sendEmail({
+                to: email,
+                subject: "Email confirmation",
+                html: templateEmail(otp)
+            })
+            await this._redisService.setValue({ key: this._redisService.otpKey({ email, subject: EmailEnum.confirmedEmail }), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 })
+            await this._redisService.setValue({ key: this._redisService.max_otp_key({ email }), value: "1", ttl: 60 * 30 })
+        })
         const user: HydratedDocument<IUser> = await this._userModel.create({
             username
             , email
@@ -51,14 +64,6 @@ class UserService {
             confirmed
         })
 
-        const otp = await sendOtp()
-        await sendEmail({
-            to: email,
-            subject: "Email confirmation",
-            html: templateEmail(otp)
-        })
-        await setValue({ key: otpKey(email, emailEnum.confirmedEmail), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 })
-
         res.status(200).json({
             message: "User signed up successfully", data: user
         })
@@ -67,8 +72,8 @@ class UserService {
     confirmEmail = async (req: Request, res: Response, next: NextFunction) => {
         const { email, otp } = req.body;
 
-        const otpValue = await getValue({
-            key: otpKey(email, emailEnum.confirmedEmail)
+        const otpValue = await this._redisService.get({
+            key: this._redisService.otpKey({ email, subject: EmailEnum.confirmedEmail })
         });
 
         if (!otpValue) {
@@ -86,8 +91,8 @@ class UserService {
         }
         const userUpdated = await this._userModel.update({ email }, { confirmed: true });
 
-        await deleteKey({
-            key: otpKey(email, emailEnum.confirmedEmail)
+        await this._redisService.del({
+            key: this._redisService.otpKey({ email, subject: EmailEnum.confirmedEmail })
         });
 
         res.status(200).json({
@@ -107,12 +112,21 @@ class UserService {
         if (!Compare({ plan_text: password, cipher_text: user.password })) {
             return next(new AppError("Invalid email or password", 400));
         }
-
-        const access_token = generateToken({ payload: { id: user._id }, secretKey: ACCESS_SECRET_KEY });
+        const uuid = randomUUID()
+        const access_token = this._tokenService.generateToken({
+            payload: { id: user._id, email: user.email },
+            secretKey: user?.role == RoleEnum.user ? ACCESS_SECRET_KEY_USER : ACCESS_SECRET_KEY_ADMIN,
+            options: { jwtid: uuid }
+        });
+        const refresh_token = this._tokenService.generateToken({
+            payload: { id: user._id, email: user.email },
+            secretKey: user?.role == RoleEnum.user ? REFRESH_SECRET_KEY_USER : REFRESH_SECRET_KEY_ADMIN,
+            options: { jwtid: uuid }
+        })
 
         return res.status(200).json({
             message: "User signed in successfully",
-            data: { access_token, user }
+            data: { access_token, refresh_token }
         });
 
     }
@@ -145,7 +159,7 @@ class UserService {
             }
             const access_token = generateToken({
                 payload: { id: user._id },
-                secretKey: ACCESS_SECRET_KEY,
+                secretKey: ACCESS_SECRET_KEY_USER,
             });
             return res.status(200).json({
                 message: "User signed in with Google successfully",
@@ -171,7 +185,7 @@ class UserService {
             subject: "Reset password OTP",
             html: templateEmail(otp)
         })
-        await setValue({ key: otpKey(email, emailEnum.forgetPassword), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 })
+        await this._redisService.setValue({ key: this._redisService.otpKey({ email, subject: EmailEnum.forgetPassword }), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 5 })
         res.status(200).json({
             message: "OTP sent to email successfully"
         })
@@ -179,8 +193,8 @@ class UserService {
 
     resetPassword = async (req: Request, res: Response, next: NextFunction) => {
         const { newPassword, email, otp } = req.body
-        const otpValue = await getValue({
-            key: otpKey(email, emailEnum.forgetPassword)
+        const otpValue = await this._redisService.get({
+            key: this._redisService.otpKey({ email, subject: EmailEnum.forgetPassword })
         });
         if (!otpValue) {
             return next(new AppError("OTP expired", 400));
@@ -196,8 +210,8 @@ class UserService {
         }
         const hashedPassword = Hash({ plan_text: newPassword });
         await this._userModel.update({ email }, { password: hashedPassword });
-        await deleteKey({
-            key: otpKey(email, emailEnum.forgetPassword)
+        await this._redisService.del({
+            key: this._redisService.otpKey({ email, subject: EmailEnum.forgetPassword })
         });
         res.status(200).json({
             message: "Password reset successfully"
@@ -226,7 +240,7 @@ class UserService {
         // to log out the user we can just delete the token from the client side, but if we want to invalidate the token we can use redis to store the invalid tokens and check them in the authentication middleware, so that we can prevent the user from using the invalid token to access the protected routes.
         const token = req.headers.authorization?.split(" ")[1];
         if (token) {
-            await setValue({ key: token, value: "invalid", ttl: 60 * 60 }) // we can set the ttl to the remaining time of the token, so that we can automatically delete the invalid token from redis after it expires.
+            await this._redisService.setValue({ key: token, value: "invalid", ttl: 60 * 60 }) // we can set the ttl to the remaining time of the token, so that we can automatically delete the invalid token from redis after it expires.
         }
         res.status(200).json({
             message: "User logged out successfully"

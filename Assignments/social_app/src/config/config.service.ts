@@ -11,9 +11,15 @@ export const SALT_ROUND: number = Number(process.env.SALT_ROUND)
 export const ENCRYPTION_KEY: string = process.env.ENCRYPTION_KEY!
 export const GMAIL_USER: string = process.env.GMAIL_USER!
 export const GMAIL_PASS: string = process.env.GMAIL_PASS!
-export const ACCESS_SECRET_KEY: string = process.env.ACCESS_SECRET_KEY!
-export const REFRESH_SECRET_KEY: string = process.env.REFRESH_SECRET_KEY!
-export const PREFIX: string = process.env.PREFIX!
+
+export const ACCESS_SECRET_KEY_USER: string = process.env.ACCESS_SECRET_KEY_USER!
+export const ACCESS_SECRET_KEY_ADMIN: string = process.env.ACCESS_SECRET_KEY_ADMIN!
+
+export const REFRESH_SECRET_KEY_USER: string = process.env.REFRESH_SECRET_KEY_USER!
+export const REFRESH_SECRET_KEY_ADMIN: string = process.env.REFRESH_SECRET_KEY_ADMIN!
+
+export const PREFIX_USER: string = process.env.PREFIX_USER!
+export const PREFIX_ADMIN: string = process.env.PREFIX_ADMIN!
 export const REDIS_URL: string = process.env.REDIS_URL!
 
 

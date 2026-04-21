@@ -7,7 +7,7 @@ import { PORT } from "./config/config.service";
 import { AppError, globalErrorHandler } from "./common/utils/global-error-handling";
 import authRouter from "./modules/auth/user.controller";
 import { checkConnection } from "./DB/connectionDB";
-import { connectRedis } from "./common/utils/redis/redis.db";
+import redisService from "./common/services/redis.service";
 
 
 const app: express.Application = express();
@@ -32,7 +32,7 @@ const bootstrap = () => {
 
     app.use(express.json());
     checkConnection()
-    connectRedis()
+    redisService.connect()
     app.use(cors(), helmet(), limiter)
 
     app.use("/auth", authRouter)

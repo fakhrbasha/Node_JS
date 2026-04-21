@@ -33,14 +33,18 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.updatePasswordSchema = exports.signInSchema = exports.confirmEmailSchema = exports.signUpSchema = void 0;
+exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.updatePasswordSchema = exports.confirmEmailSchema = exports.signUpSchema = exports.signInSchema = void 0;
 const z = __importStar(require("zod"));
 const user_enum_1 = require("../../common/enum/user.enum");
-exports.signUpSchema = {
+exports.signInSchema = {
     body: z.object({
-        username: z.string({ error: "username is required" }).min(3).max(25),
         email: z.string({ error: "email is required" }).email(),
-        password: z.string({ error: "password is required" }).min(6),
+        password: z.string({ error: "password is required" }).min(6)
+    })
+};
+exports.signUpSchema = {
+    body: exports.signInSchema.body.safeExtend({
+        username: z.string({ error: "username is required" }).min(3).max(25),
         confirmPassword: z.string({ error: "confirm password is required" }).min(6),
         age: z.number({ error: "age is required" }).min(15).max(60),
         gender: z.enum(user_enum_1.GenderEnum).optional(),
@@ -58,12 +62,6 @@ exports.confirmEmailSchema = {
     body: z.object({
         email: z.string({ error: "email is required" }).email(),
         otp: z.string({ error: "otp is required" }).min(6).max(6)
-    })
-};
-exports.signInSchema = {
-    body: z.object({
-        email: z.string({ error: "email is required" }).email(),
-        password: z.string({ error: "password is required" }).min(6)
     })
 };
 exports.updatePasswordSchema = {

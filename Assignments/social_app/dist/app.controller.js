@@ -11,7 +11,7 @@ const config_service_1 = require("./config/config.service");
 const global_error_handling_1 = require("./common/utils/global-error-handling");
 const user_controller_1 = __importDefault(require("./modules/auth/user.controller"));
 const connectionDB_1 = require("./DB/connectionDB");
-const redis_db_1 = require("./common/utils/redis/redis.db");
+const redis_service_1 = __importDefault(require("./common/services/redis.service"));
 const app = (0, express_1.default)();
 const port = Number(config_service_1.PORT);
 const bootstrap = () => {
@@ -26,7 +26,7 @@ const bootstrap = () => {
     });
     app.use(express_1.default.json());
     (0, connectionDB_1.checkConnection)();
-    (0, redis_db_1.connectRedis)();
+    redis_service_1.default.connect();
     app.use((0, cors_1.default)(), (0, helmet_1.default)(), limiter);
     app.use("/auth", user_controller_1.default);
     app.get("/", (req, res, next) => {
