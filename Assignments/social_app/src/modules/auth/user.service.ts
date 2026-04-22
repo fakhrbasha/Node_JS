@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import { AppError } from "../../common/utils/global-error-handling";
 import userModel, { IUser } from "../../DB/models/user.model";
 import { HydratedDocument, Model } from "mongoose";
-import BaseRepository from "../../DB/repository/base.repository";
 import UserRepository from "../../DB/repository/user.repository";
 import { encrypt } from "../../common/utils/security/encrypt";
 import { Compare, Hash } from "../../common/utils/security/hash";
@@ -10,7 +9,6 @@ import { sendEmail, sendOtp } from "../../common/utils/mail/mail";
 import { templateEmail } from "../../common/utils/mail/email.template";
 import { EmailEnum, providerEnum, RoleEnum } from "../../common/enum/user.enum";
 import { ACCESS_SECRET_KEY_ADMIN, ACCESS_SECRET_KEY_USER, REFRESH_SECRET_KEY_ADMIN, REFRESH_SECRET_KEY_USER } from "../../config/config.service";
-import { generateToken } from "../../common/utils/jwt/jwt";
 import { OAuth2Client } from "google-auth-library";
 import RedisService from "../../common/services/redis.service";
 import { randomUUID } from "node:crypto"
@@ -157,7 +155,7 @@ class UserService {
             if (user.provider === providerEnum.system) {
                 throw new AppError("Please login with email and password", 400);
             }
-            const access_token = generateToken({
+            const access_token = this._tokenService.generateToken({
                 payload: { id: user._id },
                 secretKey: ACCESS_SECRET_KEY_USER,
             });

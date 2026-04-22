@@ -1,23 +1,20 @@
 import { NextFunction, Request, Response } from "express";
 import { AppError } from "../utils/global-error-handling";
 import { ACCESS_SECRET_KEY_USER, PREFIX_USER, PREFIX_ADMIN, ACCESS_SECRET_KEY_ADMIN } from "../../config/config.service";
-import { verifyToken } from "../utils/jwt/jwt";
+
 import { IUser } from "../../DB/models/user.model";
 import { HydratedDocument } from "mongoose";
 import { JwtPayload } from "jsonwebtoken";
 import UserRepository from "../../DB/repository/user.repository";
 import redisService from "../services/redis.service";
+import TokenService from "../utils/jwt/jwt.service"
 interface IJwtPayload {
     id: string;
     email?: string;
 }
 
-// interface IRequest extends Request {
-//     user?: HydratedDocument<IUser>
-//     decoded?: JwtPayload
-// }
-
 const userModel = new UserRepository()
+
 export const authentication = async (req: Request, res: Response, next: NextFunction) => {
     const { authorization } = req.headers;
     if (!authorization) {
@@ -37,7 +34,7 @@ export const authentication = async (req: Request, res: Response, next: NextFunc
     if (!token) {
         throw new AppError("invalid token format", 401);
     }
-    const decoded = verifyToken({
+    const decoded = TokenService.verifyToken({
         token,
         secretKey: ACCESS_SECRET_KEY
     }) as IJwtPayload;
