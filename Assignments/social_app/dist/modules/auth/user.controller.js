@@ -45,6 +45,7 @@ const authRouter = (0, express_1.Router)();
 authRouter.post('/signup', (0, validation_1.validation)(userValidation.signUpSchema), user_service_1.default.signup);
 authRouter.post('/confirm-email', (0, validation_1.validation)(userValidation.confirmEmailSchema), user_service_1.default.confirmEmail);
 authRouter.post('/signin', (0, validation_1.validation)(userValidation.signInSchema), user_service_1.default.signin);
+authRouter.post('/resend-otp', (0, validation_1.validation)(userValidation.resendOtpSchema), user_service_1.default.reSendOtp);
 authRouter.post('/signup/gmail', user_service_1.default.signinWithGoogle);
 authRouter.post('/update-password', (0, validation_1.validation)(userValidation.updatePasswordSchema), authentication_1.authentication, user_service_1.default.updatePassword);
 authRouter.post('/forgot-password', (0, validation_1.validation)(userValidation.forgotPasswordSchema), user_service_1.default.forgetPassword);

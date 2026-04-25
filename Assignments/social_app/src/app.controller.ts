@@ -8,6 +8,7 @@ import { AppError, globalErrorHandler } from "./common/utils/global-error-handli
 import authRouter from "./modules/auth/user.controller";
 import { checkConnection } from "./DB/connectionDB";
 import redisService from "./common/services/redis.service";
+import userModel from "./DB/models/user.model";
 
 
 const app: express.Application = express();
@@ -31,6 +32,27 @@ const bootstrap = () => {
     })
 
     app.use(express.json());
+
+
+    // async function test() {
+
+    //     const user = new userModel({
+    //         firstName: "ahmed fakhr",
+    //         lastName: "ahmed fakhr",
+    //         email: `ahmed__${Date.now()}@gmail.com`,
+    //         password: "12345",
+    //         age: 24,
+    //         phone: "01021329089"
+    //     })
+    //     await user.save()
+
+    //     user.age = 37
+
+    //     await user.save()
+
+    // }
+
+    // test()
     checkConnection()
     redisService.connect()
     app.use(cors(), helmet(), limiter)

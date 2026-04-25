@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importDefault(require("mongoose"));
 const user_enum_1 = require("../../common/enum/user.enum");
+const hash_1 = require("../../common/utils/security/hash");
 const userSchema = new mongoose_1.default.Schema({
     firstName: {
         type: String,
@@ -21,10 +22,18 @@ const userSchema = new mongoose_1.default.Schema({
         max: 50
     },
     email: { type: String, required: true, unique: true, trim: true },
-    age: { type: Number, required: true, min: 15, max: 60 },
+    age: {
+        type: Number, required: function () {
+            return this.provider == user_enum_1.providerEnum.system ? true : false;
+        }, min: 15, max: 60
+    },
     phone: { type: String, trim: true },
     address: { type: String },
-    password: { type: String, required: true, trim: true, min: 6, max: 100 },
+    password: {
+        type: String, required: function () {
+            return this.provider == user_enum_1.providerEnum.system ? true : false;
+        }, trim: true, min: 6, max: 100
+    },
     confirmed: { type: Boolean },
     role: { type: String, enum: user_enum_1.RoleEnum, default: user_enum_1.RoleEnum.user },
     gender: { type: String, enum: user_enum_1.GenderEnum, default: user_enum_1.GenderEnum.male },
@@ -41,6 +50,17 @@ userSchema.virtual("username").get(function () {
     const [firstName, lastName] = value.split(" ");
     this.firstName = firstName;
     this.lastName = lastName;
+});
+userSchema.pre("save", function () {
+    console.log("=========== pre hook ============");
+    console.log(this.modifiedPaths());
+    if (this.isModified("password")) {
+        this.password = (0, hash_1.Hash)({ plan_text: this.password });
+    }
+});
+userSchema.post("save", function () {
+    console.log("=========== pre hook ============");
+    console.log(this);
 });
 const userModel = mongoose_1.default.models.User || mongoose_1.default.model("User", userSchema);
 exports.default = userModel;

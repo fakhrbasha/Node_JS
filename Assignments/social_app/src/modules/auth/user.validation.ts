@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { GenderEnum } from "../../common/enum/user.enum";
+import { GenderEnum, providerEnum } from "../../common/enum/user.enum";
 
 
 export const signInSchema = {
@@ -19,7 +19,8 @@ export const signUpSchema = {
             gender: z.enum(GenderEnum).optional(),
             address: z.string().min(10).max(100).optional(),
             phone: z.string().min(10).max(15).optional(),
-            confirmed: z.boolean().optional()
+            confirmed: z.boolean().optional(),
+            provider: z.enum(providerEnum).optional()
 
         }).refine((data) => {
             return data.password === data.confirmPassword
@@ -62,5 +63,10 @@ export const resetPasswordSchema = {
         email: z.string({ error: "email is required" }).email(),
         otp: z.string({ error: "otp is required" }).min(6).max(6),
         newPassword: z.string({ error: "new password is required" }).min(6)
+    })
+}
+export const resendOtpSchema = {
+    body: z.object({
+        email: z.string({ error: "email is required" }).email(),
     })
 }

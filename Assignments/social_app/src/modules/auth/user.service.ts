@@ -8,7 +8,7 @@ import { Compare, Hash } from "../../common/utils/security/hash";
 import { sendEmail, sendOtp } from "../../common/utils/mail/mail";
 import { templateEmail } from "../../common/utils/mail/email.template";
 import { EmailEnum, providerEnum, RoleEnum } from "../../common/enum/user.enum";
-import { ACCESS_SECRET_KEY_ADMIN, ACCESS_SECRET_KEY_USER, REFRESH_SECRET_KEY_ADMIN, REFRESH_SECRET_KEY_USER } from "../../config/config.service";
+import { ACCESS_SECRET_KEY_ADMIN, ACCESS_SECRET_KEY_USER, CLIENT_ID, REFRESH_SECRET_KEY_ADMIN, REFRESH_SECRET_KEY_USER } from "../../config/config.service";
 import { OAuth2Client } from "google-auth-library";
 import RedisService from "../../common/services/redis.service";
 import { randomUUID } from "node:crypto"
@@ -31,8 +31,37 @@ class UserService {
 
     constructor() { }
 
+    sendEmailOtp = async ({ email, subject }: { email: string, subject: EmailEnum }) => {
+        const isBlocked = await this._redisService.ttl({ key: this._redisService.block_otp_key({ email }) })
+        if (isBlocked && isBlocked > 0) {
+            throw new AppError(`you have exceeded the maximum number of attempts to resend otp please try again later after ${isBlocked} seconds`, 429)
+        }
+        const otpTTl = await this._redisService.ttl({ key: this._redisService.otpKey({ email, subject }) })
+        if (otpTTl && otpTTl > 0) {
+            throw new AppError(`you have already sent otp please check your email or try again later after ${otpTTl} seconds`, 429)
+        }
+        const maxOtp = await this._redisService.get({ key: this._redisService.max_otp_key({ email }) })
+        if (maxOtp && maxOtp >= 3) {
+            await this._redisService.setValue({ key: this._redisService.block_otp_key({ email }), value: "blocked", ttl: 60 * 5 })
+            throw new AppError(`you have exceeded the maximum number of attempts to resend otp please try again later after 300 seconds`, 429)
+        }
+        const otp = await sendOtp()
+        eventEmitter.emit(EmailEnum.confirmedEmail, async () => {
+            await sendEmail({
+                to: email,
+                subject: "Social-media App",
+                html: templateEmail(otp)
+            })
+        })
+
+        await this._redisService.setValue({ key: this._redisService.otpKey({ email }), value: Hash({ plan_text: `${otp}` }), ttl: 60 * 10 })
+        await this._redisService.increment({ key: email })
+
+
+
+    }
     signup = async (req: Request, res: Response, next: NextFunction) => {
-        const { username, email, password, confirmPassword, age, gender, address, phone, confirmed = false }: ISignUpType = req.body; // we can use the ISignUp interface to type the request body, so that we can get type checking and autocompletion for the properties of the request body.
+        const { username, email, password, confirmPassword, age, gender, address, phone, confirmed = false, provider = providerEnum.system }: ISignUpType = req.body; // we can use the ISignUp interface to type the request body, so that we can get type checking and autocompletion for the properties of the request body.
         // HydratedDocument mean  : that the document is a mongoose document that has been hydrated with the data from the database, so that we can use the methods and properties of the mongoose document on it.
 
         const emailExist = await this._userModel.findOne({ filter: { email } })
@@ -59,7 +88,8 @@ class UserService {
             , gender
             , address
             , phone: phone ? encrypt(phone) : undefined,
-            confirmed
+            confirmed,
+            provider
         })
 
         res.status(200).json({
@@ -128,6 +158,17 @@ class UserService {
         });
 
     }
+    reSendOtp = async (req: Request, res: Response, next: NextFunction) => {
+        const { email } = req.body
+        const userExist = await this._userModel.findOne({ filter: { email } })
+        if (!userExist) {
+            throw new AppError("user Not Fount", 400)
+        }
+        await this.sendEmailOtp({ email, subject: EmailEnum.confirmedEmail })
+
+        return res.status(200).json({ message: "message otp send successfully" })
+
+    }
 
     signinWithGoogle = async (req: Request, res: Response, next: NextFunction) => {
         const { idToken } = req.body;
@@ -135,7 +176,7 @@ class UserService {
         try {
             const ticket = await client.verifyIdToken({
                 idToken,
-                audience: process.env.GOOGLE_CLIENT_ID,
+                audience: process.env.CLIENT_ID,
             });
             const payload = ticket.getPayload();
             if (!payload) {
@@ -159,7 +200,8 @@ class UserService {
                 payload: { id: user._id },
                 secretKey: ACCESS_SECRET_KEY_USER,
             });
-            return res.status(200).json({
+            console.log(payload)
+            return res.status(201).json({
                 message: "User signed in with Google successfully",
                 data: { access_token, user },
             });

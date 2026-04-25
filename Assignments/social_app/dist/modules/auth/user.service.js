@@ -11,7 +11,6 @@ const mail_1 = require("../../common/utils/mail/mail");
 const email_template_1 = require("../../common/utils/mail/email.template");
 const user_enum_1 = require("../../common/enum/user.enum");
 const config_service_1 = require("../../config/config.service");
-const jwt_1 = require("../../common/utils/jwt/jwt");
 const google_auth_library_1 = require("google-auth-library");
 const redis_service_1 = __importDefault(require("../../common/services/redis.service"));
 const node_crypto_1 = require("node:crypto");
@@ -22,8 +21,33 @@ class UserService {
     _tokenService = jwt_service_1.default;
     _redisService = redis_service_1.default;
     constructor() { }
+    sendEmailOtp = async ({ email, subject }) => {
+        const isBlocked = await this._redisService.ttl({ key: this._redisService.block_otp_key({ email }) });
+        if (isBlocked && isBlocked > 0) {
+            throw new global_error_handling_1.AppError(`you have exceeded the maximum number of attempts to resend otp please try again later after ${isBlocked} seconds`, 429);
+        }
+        const otpTTl = await this._redisService.ttl({ key: this._redisService.otpKey({ email, subject }) });
+        if (otpTTl && otpTTl > 0) {
+            throw new global_error_handling_1.AppError(`you have already sent otp please check your email or try again later after ${otpTTl} seconds`, 429);
+        }
+        const maxOtp = await this._redisService.get({ key: this._redisService.max_otp_key({ email }) });
+        if (maxOtp && maxOtp >= 3) {
+            await this._redisService.setValue({ key: this._redisService.block_otp_key({ email }), value: "blocked", ttl: 60 * 5 });
+            throw new global_error_handling_1.AppError(`you have exceeded the maximum number of attempts to resend otp please try again later after 300 seconds`, 429);
+        }
+        const otp = await (0, mail_1.sendOtp)();
+        email_event_1.eventEmitter.emit(user_enum_1.EmailEnum.confirmedEmail, async () => {
+            await (0, mail_1.sendEmail)({
+                to: email,
+                subject: "Social-media App",
+                html: (0, email_template_1.templateEmail)(otp)
+            });
+        });
+        await this._redisService.setValue({ key: this._redisService.otpKey({ email }), value: (0, hash_1.Hash)({ plan_text: `${otp}` }), ttl: 60 * 10 });
+        await this._redisService.increment({ key: email });
+    };
     signup = async (req, res, next) => {
-        const { username, email, password, confirmPassword, age, gender, address, phone, confirmed = false } = req.body;
+        const { username, email, password, confirmPassword, age, gender, address, phone, confirmed = false, provider = user_enum_1.providerEnum.system } = req.body;
         const emailExist = await this._userModel.findOne({ filter: { email } });
         if (emailExist) {
             return next(new global_error_handling_1.AppError("Email already exists", 409));
@@ -46,7 +70,8 @@ class UserService {
             gender,
             address,
             phone: phone ? (0, encrypt_1.encrypt)(phone) : undefined,
-            confirmed
+            confirmed,
+            provider
         });
         res.status(200).json({
             message: "User signed up successfully", data: user
@@ -103,13 +128,22 @@ class UserService {
             data: { access_token, refresh_token }
         });
     };
+    reSendOtp = async (req, res, next) => {
+        const { email } = req.body;
+        const userExist = await this._userModel.findOne({ filter: { email } });
+        if (!userExist) {
+            throw new global_error_handling_1.AppError("user Not Fount", 400);
+        }
+        await this.sendEmailOtp({ email, subject: user_enum_1.EmailEnum.confirmedEmail });
+        return res.status(200).json({ message: "message otp send successfully" });
+    };
     signinWithGoogle = async (req, res, next) => {
         const { idToken } = req.body;
         const client = new google_auth_library_1.OAuth2Client();
         try {
             const ticket = await client.verifyIdToken({
                 idToken,
-                audience: process.env.GOOGLE_CLIENT_ID,
+                audience: process.env.CLIENT_ID,
             });
             const payload = ticket.getPayload();
             if (!payload) {
@@ -129,11 +163,12 @@ class UserService {
             if (user.provider === user_enum_1.providerEnum.system) {
                 throw new global_error_handling_1.AppError("Please login with email and password", 400);
             }
-            const access_token = (0, jwt_1.generateToken)({
+            const access_token = this._tokenService.generateToken({
                 payload: { id: user._id },
                 secretKey: config_service_1.ACCESS_SECRET_KEY_USER,
             });
-            return res.status(200).json({
+            console.log(payload);
+            return res.status(201).json({
                 message: "User signed in with Google successfully",
                 data: { access_token, user },
             });

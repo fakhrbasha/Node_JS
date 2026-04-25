@@ -6,8 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.authentication = void 0;
 const global_error_handling_1 = require("../utils/global-error-handling");
 const config_service_1 = require("../../config/config.service");
-const jwt_1 = require("../utils/jwt/jwt");
 const user_repository_1 = __importDefault(require("../../DB/repository/user.repository"));
+const jwt_service_1 = __importDefault(require("../utils/jwt/jwt.service"));
 const userModel = new user_repository_1.default();
 const authentication = async (req, res, next) => {
     const { authorization } = req.headers;
@@ -28,7 +28,7 @@ const authentication = async (req, res, next) => {
     if (!token) {
         throw new global_error_handling_1.AppError("invalid token format", 401);
     }
-    const decoded = (0, jwt_1.verifyToken)({
+    const decoded = jwt_service_1.default.verifyToken({
         token,
         secretKey: ACCESS_SECRET_KEY
     });

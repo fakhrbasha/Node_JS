@@ -2,6 +2,7 @@
 
 import mongoose, { HydratedDocument, Types } from "mongoose";
 import { GenderEnum, providerEnum, RoleEnum } from "../../common/enum/user.enum";
+import { Hash } from "../../common/utils/security/hash";
 
 
 
@@ -45,10 +46,18 @@ const userSchema = new mongoose.Schema<IUser>({
         max: 50
     },
     email: { type: String, required: true, unique: true, trim: true },
-    age: { type: Number, required: true, min: 15, max: 60 },
+    age: {
+        type: Number, required: function (): boolean {
+            return this.provider == providerEnum.system ? true : false
+        }, min: 15, max: 60
+    },
     phone: { type: String, trim: true },
     address: { type: String },
-    password: { type: String, required: true, trim: true, min: 6, max: 100 },
+    password: {
+        type: String, required: function (): boolean {
+            return this.provider == providerEnum.system ? true : false
+        }, trim: true, min: 6, max: 100
+    },
     confirmed: { type: Boolean },
     role: { type: String, enum: RoleEnum, default: RoleEnum.user },
     gender: { type: String, enum: GenderEnum, default: GenderEnum.male },
@@ -69,6 +78,20 @@ userSchema.virtual("username").get(function (this: IUser) {
     const [firstName, lastName] = value.split(" ");
     this.firstName = firstName;
     this.lastName = lastName;
+})
+
+userSchema.pre("save", function () {
+    console.log("=========== pre hook ============")
+    // console.log(this);
+
+    console.log(this.modifiedPaths())
+    if (this.isModified("password")) {
+        this.password = Hash({ plan_text: this.password })
+    }
+})
+userSchema.post("save", function () {
+    console.log("=========== pre hook ============")
+    console.log(this);
 })
 
 const userModel = mongoose.models.User || mongoose.model<IUser>("User", userSchema);

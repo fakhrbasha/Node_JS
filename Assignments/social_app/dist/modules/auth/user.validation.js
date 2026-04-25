@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.updatePasswordSchema = exports.confirmEmailSchema = exports.signUpSchema = exports.signInSchema = void 0;
+exports.resendOtpSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.updatePasswordSchema = exports.confirmEmailSchema = exports.signUpSchema = exports.signInSchema = void 0;
 const z = __importStar(require("zod"));
 const user_enum_1 = require("../../common/enum/user.enum");
 exports.signInSchema = {
@@ -50,7 +50,8 @@ exports.signUpSchema = {
         gender: z.enum(user_enum_1.GenderEnum).optional(),
         address: z.string().min(10).max(100).optional(),
         phone: z.string().min(10).max(15).optional(),
-        confirmed: z.boolean().optional()
+        confirmed: z.boolean().optional(),
+        provider: z.enum(user_enum_1.providerEnum).optional()
     }).refine((data) => {
         return data.password === data.confirmPassword;
     }, {
@@ -80,5 +81,10 @@ exports.resetPasswordSchema = {
         email: z.string({ error: "email is required" }).email(),
         otp: z.string({ error: "otp is required" }).min(6).max(6),
         newPassword: z.string({ error: "new password is required" }).min(6)
+    })
+};
+exports.resendOtpSchema = {
+    body: z.object({
+        email: z.string({ error: "email is required" }).email(),
     })
 };

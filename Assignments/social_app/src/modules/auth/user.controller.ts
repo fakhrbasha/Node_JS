@@ -10,6 +10,7 @@ const authRouter = Router();
 authRouter.post('/signup', validation(userValidation.signUpSchema), UserService.signup);
 authRouter.post('/confirm-email', validation(userValidation.confirmEmailSchema), UserService.confirmEmail);
 authRouter.post('/signin', validation(userValidation.signInSchema), UserService.signin);
+authRouter.post('/resend-otp', validation(userValidation.resendOtpSchema), UserService.reSendOtp)
 authRouter.post('/signup/gmail', UserService.signinWithGoogle)
 authRouter.post('/update-password', validation(userValidation.updatePasswordSchema), authentication, UserService.updatePassword);
 authRouter.post('/forgot-password', validation(userValidation.forgotPasswordSchema), UserService.forgetPassword);

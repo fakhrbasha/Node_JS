@@ -23,7 +23,7 @@ export const PREFIX_ADMIN: string = process.env.PREFIX_ADMIN!
 export const REDIS_URL: string = process.env.REDIS_URL!
 
 
-
+export const CLIENT_ID = process.env.CLIENT_ID
 
 
 

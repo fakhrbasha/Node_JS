@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.REDIS_URL = exports.PREFIX_ADMIN = exports.PREFIX_USER = exports.REFRESH_SECRET_KEY_ADMIN = exports.REFRESH_SECRET_KEY_USER = exports.ACCESS_SECRET_KEY_ADMIN = exports.ACCESS_SECRET_KEY_USER = exports.GMAIL_PASS = exports.GMAIL_USER = exports.ENCRYPTION_KEY = exports.SALT_ROUND = exports.MONGO_URI = exports.PORT = void 0;
+exports.CLIENT_ID = exports.REDIS_URL = exports.PREFIX_ADMIN = exports.PREFIX_USER = exports.REFRESH_SECRET_KEY_ADMIN = exports.REFRESH_SECRET_KEY_USER = exports.ACCESS_SECRET_KEY_ADMIN = exports.ACCESS_SECRET_KEY_USER = exports.GMAIL_PASS = exports.GMAIL_USER = exports.ENCRYPTION_KEY = exports.SALT_ROUND = exports.MONGO_URI = exports.PORT = void 0;
 const path_1 = require("path");
 const dotenv_1 = require("dotenv");
 const NODE_ENV = process.env.NODE_ENV;
@@ -18,3 +18,4 @@ exports.REFRESH_SECRET_KEY_ADMIN = process.env.REFRESH_SECRET_KEY_ADMIN;
 exports.PREFIX_USER = process.env.PREFIX_USER;
 exports.PREFIX_ADMIN = process.env.PREFIX_ADMIN;
 exports.REDIS_URL = process.env.REDIS_URL;
+exports.CLIENT_ID = process.env.CLIENT_ID;
