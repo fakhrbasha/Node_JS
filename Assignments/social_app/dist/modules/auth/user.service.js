@@ -16,10 +16,12 @@ const redis_service_1 = __importDefault(require("../../common/services/redis.ser
 const node_crypto_1 = require("node:crypto");
 const jwt_service_1 = __importDefault(require("../../common/utils/jwt/jwt.service"));
 const email_event_1 = require("../../common/utils/mail/email.event");
+const s3_service_1 = require("../../common/services/s3.service");
 class UserService {
     _userModel = new user_repository_1.default();
     _tokenService = jwt_service_1.default;
     _redisService = redis_service_1.default;
+    _s3Service = new s3_service_1.S3Service();
     constructor() { }
     sendEmailOtp = async ({ email, subject }) => {
         const isBlocked = await this._redisService.ttl({ key: this._redisService.block_otp_key({ email }) });
@@ -240,6 +242,32 @@ class UserService {
         res.status(200).json({
             message: "User logged out successfully"
         });
+    };
+    uploadImage = async (req, res, next) => {
+        const image = await this._s3Service.uploadFile({ file: req.file, path: "users" });
+        return res.status(200).json({
+            message: "Image uploaded successfully",
+            data: image
+        });
+    };
+    uploadLargeFile = async (req, res, next) => {
+        const file = await this._s3Service.uploadLargeFile({ file: req.file, path: "users/large" });
+        return res.status(200).json({
+            message: "File uploaded successfully",
+            data: file
+        });
+    };
+    uploadFiles = async (req, res, next) => {
+        const files = await this._s3Service.uploadFiles({ files: req.files, path: "users/multiple", isLarge: false });
+        return res.status(200).json({
+            message: "Files uploaded successfully",
+            data: files
+        });
+    };
+    uploadFileWithoutMulter = async (req, res, next) => {
+        const { fileName, ContentType } = req.body;
+        const { url, Key } = await this._s3Service.createPreSignedUrl({ path: "users", fileName, ContentType });
+        return res.status(201).json({ message: "done", data: { url, Key } });
     };
 }
 exports.default = new UserService();

@@ -41,6 +41,8 @@ const user_service_1 = __importDefault(require("./user.service"));
 const userValidation = __importStar(require("./user.validation"));
 const validation_1 = require("../../common/middleware/validation");
 const authentication_1 = require("../../common/middleware/authentication");
+const multer_cloud_1 = __importDefault(require("../../common/middleware/multer.cloud"));
+const multer_enum_1 = require("../../common/enum/multer.enum");
 const authRouter = (0, express_1.Router)();
 authRouter.post('/signup', (0, validation_1.validation)(userValidation.signUpSchema), user_service_1.default.signup);
 authRouter.post('/confirm-email', (0, validation_1.validation)(userValidation.confirmEmailSchema), user_service_1.default.confirmEmail);
@@ -51,4 +53,8 @@ authRouter.post('/update-password', (0, validation_1.validation)(userValidation.
 authRouter.post('/forgot-password', (0, validation_1.validation)(userValidation.forgotPasswordSchema), user_service_1.default.forgetPassword);
 authRouter.post('/reset-password', (0, validation_1.validation)(userValidation.resetPasswordSchema), user_service_1.default.resetPassword);
 authRouter.post('/logout', authentication_1.authentication, user_service_1.default.logOut);
+authRouter.post('/upload-image', authentication_1.authentication, (0, multer_cloud_1.default)().single("attachment"), user_service_1.default.uploadImage);
+authRouter.post('/upload-large-file', authentication_1.authentication, (0, multer_cloud_1.default)({ store_type: multer_enum_1.Store_Enum.disk }).single("attachment"), user_service_1.default.uploadLargeFile);
+authRouter.post('/upload-files', (0, multer_cloud_1.default)().array("attachments", 10), user_service_1.default.uploadFiles);
+authRouter.post("/uploadFileWithoutMulter", authentication_1.authentication, user_service_1.default.uploadFileWithoutMulter);
 exports.default = authRouter;

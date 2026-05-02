@@ -15,6 +15,8 @@ import { randomUUID } from "node:crypto"
 import TokenService from "../../common/utils/jwt/jwt.service"
 import { ISignUpType } from "./auth.dto";
 import { eventEmitter } from "../../common/utils/mail/email.event";
+import { S3Service } from "../../common/services/s3.service";
+import { Store_Enum } from "../../common/enum/multer.enum";
 
 class UserService {
 
@@ -24,6 +26,7 @@ class UserService {
     private readonly _userModel = new UserRepository()
     private readonly _tokenService = TokenService
     private readonly _redisService = RedisService
+    private readonly _s3Service = new S3Service()
 
 
 
@@ -96,7 +99,6 @@ class UserService {
             message: "User signed up successfully", data: user
         })
     }
-
     confirmEmail = async (req: Request, res: Response, next: NextFunction) => {
         const { email, otp } = req.body;
 
@@ -169,7 +171,6 @@ class UserService {
         return res.status(200).json({ message: "message otp send successfully" })
 
     }
-
     signinWithGoogle = async (req: Request, res: Response, next: NextFunction) => {
         const { idToken } = req.body;
         const client = new OAuth2Client();
@@ -209,7 +210,6 @@ class UserService {
             next(error);
         }
     };
-
     // forget password
     forgetPassword = async (req: Request, res: Response, next: NextFunction) => {
         const { email } = req.body
@@ -230,7 +230,6 @@ class UserService {
             message: "OTP sent to email successfully"
         })
     }
-
     resetPassword = async (req: Request, res: Response, next: NextFunction) => {
         const { newPassword, email, otp } = req.body
         const otpValue = await this._redisService.get({
@@ -258,7 +257,6 @@ class UserService {
         });
     }
     //  update password 
-
     updatePassword = async (req: Request, res: Response, next: NextFunction) => {
         const { oldPassword, newPassword } = req.body;
         // console.log("oldPassword:", oldPassword);
@@ -275,7 +273,6 @@ class UserService {
         });
     }
     // logout 
-
     logOut = async (req: Request, res: Response, next: NextFunction) => {
         // to log out the user we can just delete the token from the client side, but if we want to invalidate the token we can use redis to store the invalid tokens and check them in the authentication middleware, so that we can prevent the user from using the invalid token to access the protected routes.
         const token = req.headers.authorization?.split(" ")[1];
@@ -286,6 +283,40 @@ class UserService {
             message: "User logged out successfully"
         });
 
+    }
+    uploadImage = async (req: Request, res: Response, next: NextFunction) => {
+
+        const image = await this._s3Service.uploadFile({ file: req.file!, path: "users" })
+
+
+        return res.status(200).json({
+            message: "Image uploaded successfully",
+            data: image
+        })
+    }
+    uploadLargeFile = async (req: Request, res: Response, next: NextFunction) => {
+
+        const file = await this._s3Service.uploadLargeFile({ file: req.file!, path: "users/large" })
+
+
+        return res.status(200).json({
+            message: "File uploaded successfully",
+            data: file
+        })
+    }
+    uploadFiles = async (req: Request, res: Response, next: NextFunction) => {
+        const files = await this._s3Service.uploadFiles({ files: req.files as Express.Multer.File[], path: "users/multiple", isLarge: false })
+        return res.status(200).json({
+            message: "Files uploaded successfully",
+            data: files
+        })
+    }
+    // method must put
+    uploadFileWithoutMulter = async (req: Request, res: Response, next: NextFunction) => {
+        const { fileName, ContentType } = req.body
+        const { url, Key } = await this._s3Service.createPreSignedUrl({ path: "users", fileName, ContentType })
+
+        return res.status(201).json({ message: "done", data: { url, Key } })
     }
 
 

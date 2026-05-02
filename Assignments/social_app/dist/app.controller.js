@@ -12,6 +12,8 @@ const global_error_handling_1 = require("./common/utils/global-error-handling");
 const user_controller_1 = __importDefault(require("./modules/auth/user.controller"));
 const connectionDB_1 = require("./DB/connectionDB");
 const redis_service_1 = __importDefault(require("./common/services/redis.service"));
+const promises_1 = require("stream/promises");
+const s3_service_1 = require("./common/services/s3.service");
 const app = (0, express_1.default)();
 const port = Number(config_service_1.PORT);
 const bootstrap = () => {
@@ -25,12 +27,28 @@ const bootstrap = () => {
         legacyHeaders: false,
     });
     app.use(express_1.default.json());
+    async function test() {
+    }
+    test();
     (0, connectionDB_1.checkConnection)();
     redis_service_1.default.connect();
     app.use((0, cors_1.default)(), (0, helmet_1.default)(), limiter);
     app.use("/auth", user_controller_1.default);
     app.get("/", (req, res, next) => {
         res.status(200).json({ message: "Welcome to the Social App API!" });
+    });
+    app.get("/upload/*path", async (req, res, next) => {
+        const { path } = req.params;
+        const { download } = req.query;
+        const Key = path.join("/");
+        const result = await new s3_service_1.S3Service().getFile(Key);
+        const stream = result.Body;
+        res.setHeader("content-type", result.ContentType);
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        if (download && download === "true") {
+            res.setHeader("Content-Disposition", `attachment; filename="${path.pop()}"`);
+        }
+        await (0, promises_1.pipeline)(stream, res);
     });
     app.use("{/*demo}", (req, res, next) => {
         throw new global_error_handling_1.AppError(`Invalid URL ${req.originalUrl} with method ${req.method} not found`, 404);

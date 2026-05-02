@@ -25,7 +25,7 @@ export const REDIS_URL: string = process.env.REDIS_URL!
 
 export const CLIENT_ID = process.env.CLIENT_ID
 
-
-
-
-
+export const AWS_REGION = process.env.AWS_REGION!
+export const AWS_BUCKET_NAME = process.env.AWS_BUCKET_NAME!
+export const AWS_ACCESS_KEY = process.env.AWS_ACCESS_KEY!
+export const AWS_SECRUT_ACCESS_KEY = process.env.AWS_SECRUT_ACCESS_KEY!

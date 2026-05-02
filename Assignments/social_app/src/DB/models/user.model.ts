@@ -1,8 +1,12 @@
 
 
 import mongoose, { HydratedDocument, Types } from "mongoose";
-import { GenderEnum, providerEnum, RoleEnum } from "../../common/enum/user.enum";
+import { EmailEnum, GenderEnum, providerEnum, RoleEnum } from "../../common/enum/user.enum";
 import { Hash } from "../../common/utils/security/hash";
+import { AppError } from "../../common/utils/global-error-handling";
+import { sendEmail, sendOtp } from "../../common/utils/mail/mail";
+import { eventEmitter } from "../../common/utils/mail/email.event";
+import { templateEmail } from "../../common/utils/mail/email.template";
 
 
 
@@ -80,19 +84,90 @@ userSchema.virtual("username").get(function (this: IUser) {
     this.lastName = lastName;
 })
 
-userSchema.pre("save", function () {
-    console.log("=========== pre hook ============")
-    // console.log(this);
+// userSchema.pre("save", function (this: HydratedDocument<IUser> & { is_new: boolean }) {
+//     console.log("=========== pre hook ============")
+//     // console.log(this);
 
-    console.log(this.modifiedPaths())
-    if (this.isModified("password")) {
-        this.password = Hash({ plan_text: this.password })
-    }
-})
-userSchema.post("save", function () {
-    console.log("=========== pre hook ============")
-    console.log(this);
-})
+//     this.is_new = this.isNew
+//     console.log(this.isNew);
+
+
+//     console.log(this.modifiedPaths())
+//     if (this.isModified("password")) {
+//         this.password = Hash({ plan_text: this.password })
+//     }
+// })
+// userSchema.post("save", async function () {
+//     console.log("=========== pre hook ============")
+//     // console.log(this);
+//     // console.log(this.isNew) // return bool if this document first time created or not
+
+//     const that = this as HydratedDocument<IUser> & { is_new: boolean }
+//     console.log(that.is_new);
+//     if (that.is_new) {
+
+//         const otp = await sendOtp()
+//         eventEmitter.emit(EmailEnum.confirmedEmail, async () => {
+//             await sendEmail({
+//                 to: this.email,
+//                 subject: "Email confirmation",
+//                 html: templateEmail(otp)
+//             })
+//         })
+//     }
+// })
+
+
+// run before create
+// userSchema.pre("validate", function () {
+//     console.log("=========== pre validate hook ============")
+//     // console.log(this);
+//     if (this.age < 18) { // priority > built in validation
+//         throw new AppError("age to small")
+//     }
+// })
+
+// run after create
+// userSchema.post("validate", function () {
+//     console.log("=========== post validate hook ============")
+//     console.log(this);
+// })
+
+
+// query middleware
+
+// userSchema.pre("updateOne", { document: true, query: false }, function () {
+//     console.log("=========== updateOne hook ============")
+//     console.log(this);
+// })
+// userSchema.pre("deleteOne", { document: true, query: false }, function () {
+//     console.log("=========== deleteOne hook ============")
+//     console.log(this);
+// })
+// userSchema.pre(/$regex/, { document: true, query: false }, function () {
+//     console.log("=========== post validate hook ============")
+//     console.log(this);
+// })
+
+// userSchema.pre(['deleteOne', 'updateOne'], { document: true, query: false }, function () {
+//     console.log("=========== More  hook ============")
+//     console.log(this);
+// })
+
+
+
+// userSchema.pre("findOne", function () {
+//     console.log("==== pre hok findOne");
+//     console.log(this.getQuery())
+
+//     const { paranoid, ...rest } = this.getQuery()
+
+//     if (!paranoid) {
+//         this.setQuery({ ...rest })
+//     } else {
+//         this.setQuery({ ...rest, deletedAt: { $existsL: false } })
+//     }
+// })
 
 const userModel = mongoose.models.User || mongoose.model<IUser>("User", userSchema);
 

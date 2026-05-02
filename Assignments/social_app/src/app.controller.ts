@@ -10,7 +10,8 @@ import { checkConnection } from "./DB/connectionDB";
 import redisService from "./common/services/redis.service";
 import userModel from "./DB/models/user.model";
 
-
+import { pipeline } from "stream/promises"
+import { S3Service } from "./common/services/s3.service";
 const app: express.Application = express();
 
 const port: number = Number(PORT); // because process.env.PORT is a string, we need to convert it to a number
@@ -34,25 +35,31 @@ const bootstrap = () => {
     app.use(express.json());
 
 
-    // async function test() {
+    async function test() {
 
-    //     const user = new userModel({
-    //         firstName: "ahmed fakhr",
-    //         lastName: "ahmed fakhr",
-    //         email: `ahmed__${Date.now()}@gmail.com`,
-    //         password: "12345",
-    //         age: 24,
-    //         phone: "01021329089"
-    //     })
-    //     await user.save()
+        // const user = new userModel({
+        //     firstName: "ahmed fakhr",
+        //     lastName: "ahmed fakhr",
+        //     email: `ahmed__${Date.now()}@gmail.com`,
+        //     password: "12345",
+        //     age: 16,
+        //     phone: "01021329089"
+        // })
+        // await user.save({ validateBeforeSave: true }) // by default
+        // // await user.save({ validateBeforeSave: false }) // not run hook when use validate hook
 
-    //     user.age = 37
+        // user.age = 37
 
-    //     await user.save()
+        // await user.save()
 
-    // }
+        // const user = new userModel({})
+        // // await user.updateOne({ $set: { x: 'test' } })
+        // await user.deleteOne({})
+        // console.log("user deleted");
 
-    // test()
+    }
+
+    test()
     checkConnection()
     redisService.connect()
     app.use(cors(), helmet(), limiter)
@@ -61,6 +68,26 @@ const bootstrap = () => {
 
     app.get("/", (req: Request, res: Response, next: NextFunction) => {
         res.status(200).json({ message: "Welcome to the Social App API!" })
+    })
+
+    // get photo uploaded
+    app.get("/upload/*path", async (req: Request, res: Response, next: NextFunction) => {
+        const { path } = req.params as { path: string[] }
+        const { download } = req.query
+        const Key = path.join("/") as string
+
+        const result = await new S3Service().getFile(Key)
+
+        const stream = result.Body as NodeJS.ReadableStream
+
+        res.setHeader("content-type", result.ContentType!)
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        if (download && download === "true") {
+
+            res.setHeader("Content-Disposition", `attachment; filename="${path.pop()}"`); // only apply it for  download
+        }
+
+        await pipeline(stream, res)
     })
 
     // invalid url handler

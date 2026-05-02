@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importDefault(require("mongoose"));
 const user_enum_1 = require("../../common/enum/user.enum");
-const hash_1 = require("../../common/utils/security/hash");
 const userSchema = new mongoose_1.default.Schema({
     firstName: {
         type: String,
@@ -50,17 +49,6 @@ userSchema.virtual("username").get(function () {
     const [firstName, lastName] = value.split(" ");
     this.firstName = firstName;
     this.lastName = lastName;
-});
-userSchema.pre("save", function () {
-    console.log("=========== pre hook ============");
-    console.log(this.modifiedPaths());
-    if (this.isModified("password")) {
-        this.password = (0, hash_1.Hash)({ plan_text: this.password });
-    }
-});
-userSchema.post("save", function () {
-    console.log("=========== pre hook ============");
-    console.log(this);
 });
 const userModel = mongoose_1.default.models.User || mongoose_1.default.model("User", userSchema);
 exports.default = userModel;
