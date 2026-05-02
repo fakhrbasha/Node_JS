@@ -11,7 +11,7 @@ import redisService from "./common/services/redis.service";
 import userModel from "./DB/models/user.model";
 
 import { pipeline } from "stream/promises"
-import { S3Service } from "./common/services/s3.service";
+import { s3Service, S3Service } from "./common/services/s3.service";
 const app: express.Application = express();
 
 const port: number = Number(PORT); // because process.env.PORT is a string, we need to convert it to a number
@@ -71,6 +71,24 @@ const bootstrap = () => {
     })
 
     // get photo uploaded
+    app.get("/upload", async (req: Request, res: Response, next: NextFunction) => {
+        const { folderName } = req.query as { folderName: string }
+        let result = await new S3Service().getFiles(folderName)
+        let resultMapped = result.Contents?.map((file) => {
+            return file.Key
+        })
+        res.status(200).json({ message: "done", data: resultMapped })
+
+    })
+    app.get("/upload/pre-signed/*path", async (req: Request, res: Response, next: NextFunction) => {
+        const { path } = req.params as { path: string[] }
+        const { download } = req.query
+        const Key = path.join("/") as string
+
+        const url = await new S3Service().getPreSignedUrl({ Key, download: download ? download.toString() : undefined })
+
+        res.status(200).json({ message: "done", data: url })
+    })
     app.get("/upload/*path", async (req: Request, res: Response, next: NextFunction) => {
         const { path } = req.params as { path: string[] }
         const { download } = req.query
@@ -81,6 +99,8 @@ const bootstrap = () => {
         const stream = result.Body as NodeJS.ReadableStream
 
         res.setHeader("content-type", result.ContentType!)
+
+        // download image 
         res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
         if (download && download === "true") {
 

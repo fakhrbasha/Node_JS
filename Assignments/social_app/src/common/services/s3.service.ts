@@ -1,4 +1,4 @@
-import { GetObjectAclCommand, GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectAclCommand, GetObjectCommand, ListObjectsCommand, ObjectCannedACL, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { AWS_ACCESS_KEY, AWS_BUCKET_NAME, AWS_REGION, AWS_SECRUT_ACCESS_KEY } from "../../config/config.service";
 
 import { randomUUID } from "node:crypto"
@@ -156,6 +156,24 @@ export class S3Service {
 
         return this.client.send(commend)
     }
-}
 
+    async getPreSignedUrl({ Key, expireIn, download }: { Key: string, expireIn?: number, download?: string }) {
+        const commend = new GetObjectCommand({
+            Bucket: AWS_BUCKET_NAME,
+            Key,
+            // for download 
+            ResponseContentDisposition: download ? `attachment; filename="${Key.split("/").pop()}"` : undefined
+        })
+        const url = await getSignedUrl(this.client, commend, { expiresIn: expireIn || 60 })
+        return url
+    }
+
+    async getFiles(folderName: string) {
+        const commend = new ListObjectsCommand({
+            Bucket: AWS_BUCKET_NAME,
+            Prefix: `social_media_app/${folderName}/`
+        })
+        return await this.client.send(commend)
+    }
+}
 export const s3Service = new S3Service()
